@@ -1,0 +1,32 @@
+# ===== 비밀/설정 (절대 커밋 금지) =====
+# settings.json 에 API 키(yt/gemini/claude 등) 들어있음
+data/
+.env
+.env.*
+!.env.example
+*.local
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+*.egg-info/
+
+# ===== 벤더링된 라이브러리/외부 바이너리 (requirements.txt 로 복원) =====
+lib/
+ffmpeg_bin/
+
+# ===== 대용량 다운로드/출력물 =====
+downloads/
+*.mp3
+*.mp4
+*.wav
+*.zip
+
+# ===== OS/에디터 =====
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

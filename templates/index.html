@@ -1,0 +1,3857 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Studio Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#09090f;--s1:#111118;--s2:#17171f;--s3:#1e1e28;
+  --b1:rgba(255,255,255,0.06);--b2:rgba(255,255,255,0.11);
+  --a1:#7c6fff;--a2:#ff6fa0;--a3:#6fffc4;--a4:#ffca6f;
+  --a1d:rgba(124,111,255,0.13);
+  --tx:#eeeef8;--m1:#555568;--m2:#888899;
+  --mono:'Space Mono',monospace;--sans:'Noto Sans KR',sans-serif;
+}
+html{background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:14px}
+body{display:flex;min-height:100vh}
+
+/* 사이드바 */
+.sb{width:200px;background:var(--s1);border-right:1px solid var(--b1);position:fixed;top:0;left:0;bottom:0;display:flex;flex-direction:column;z-index:20;overflow-y:auto}
+.sb-logo{padding:1.1rem 1rem .9rem;font-family:var(--mono);font-size:17px;font-weight:700;letter-spacing:-.02em;border-bottom:1px solid var(--b1)}
+.sb-logo span{color:var(--a1)}
+.sb-sec{padding:.5rem 0}
+.sb-sec-lbl{font-size:10px;color:var(--m1);padding:.4rem 1rem .15rem;letter-spacing:.1em;text-transform:uppercase}
+.sb-item{display:flex;align-items:center;gap:8px;padding:.5rem 1rem;font-size:13px;color:var(--tx);cursor:pointer;transition:all .12s;border-left:2px solid transparent}
+.sb-item:hover{color:var(--tx);background:var(--s2)}
+.sb-item.active{color:var(--a1);background:var(--a1d);border-left-color:var(--a1)}
+.sb-item .ic{font-size:13px;width:16px;text-align:center;flex-shrink:0}
+.sb-settings{margin-top:auto;padding:.75rem 1rem;border-top:1px solid var(--b1)}
+.sb-key-status{font-size:11px;padding:5px 10px;border-radius:5px;text-align:center;cursor:pointer;font-family:var(--mono)}
+.sb-key-status.ok{background:rgba(111,255,196,.1);color:var(--a3);border:1px solid rgba(111,255,196,.2)}
+.sb-key-status.no{background:rgba(255,111,160,.1);color:var(--a2);border:1px solid rgba(255,111,160,.2)}
+
+/* 메인 */
+.main{margin-left:200px;flex:1;display:flex;flex-direction:column}
+.topbar{height:46px;background:var(--s1);border-bottom:1px solid var(--b1);display:flex;align-items:center;padding:0 1.25rem;gap:10px;position:sticky;top:0;z-index:10}
+.tb-title{font-size:14px;font-weight:500;flex:1;color:var(--tx)}
+.content{padding:1.25rem;flex:1}
+
+/* 페이지 */
+.page{display:none}
+.page.active{display:block}
+
+/* 카드 */
+.card{background:var(--s1);border:1px solid var(--b2);border-radius:9px;padding:1.15rem;margin-bottom:.875rem}
+.card-title{font-size:13px;font-weight:500;margin-bottom:.2rem}
+.card-sub{font-size:12px;color:var(--m2);margin-bottom:1rem}
+
+/* 폼 */
+.field{margin-bottom:.8rem}
+.field label{display:block;font-size:12px;color:var(--m2);margin-bottom:4px}
+.field input,.field textarea,.field select{width:100%;padding:9px 11px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx);font-family:var(--sans);font-size:13px;outline:none;transition:border-color .2s}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--a1)}
+.field textarea{resize:vertical;line-height:1.6}
+.field select option{background:var(--s2)}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+@media(max-width:700px){.r2,.r3{grid-template-columns:1fr}}
+
+/* 버튼 */
+.btn{padding:8px 16px;border:none;border-radius:6px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s,transform .1s;letter-spacing:.03em;display:inline-flex;align-items:center;gap:5px}
+.btn:hover{opacity:.82}.btn:active{transform:scale(.98)}.btn:disabled{opacity:.3;cursor:not-allowed}
+.btn-p{background:var(--a1);color:#fff}
+.btn-g{background:transparent;color:var(--tx);border:1px solid var(--b2)}
+.btn-g:hover{background:var(--s2);opacity:1}
+.btn-sm{padding:5px 11px;font-size:11px}
+.cp{background:transparent;color:var(--a1);border:1px solid rgba(124,111,255,.25);padding:4px 9px;font-size:11px;border-radius:4px;cursor:pointer;font-family:var(--mono);transition:all .15s}
+.cp:hover{background:var(--a1d)}
+.cp.ok{color:var(--a3);border-color:rgba(111,255,196,.3)}
+
+/* 진행 */
+.prog{display:none;margin:.75rem 0}
+.prog-txt{font-size:11px;color:var(--m2);font-family:var(--mono);margin-bottom:5px}
+.prog-bar{height:3px;background:var(--b1);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;background:var(--a1);border-radius:2px;animation:pa 2s ease-in-out infinite}
+@keyframes pa{0%{width:5%}60%{width:85%}100%{width:95%}}
+
+/* 에러 */
+.err{background:rgba(255,80,80,.08);border:1px solid rgba(255,80,80,.2);color:#ff7878;padding:8px 11px;border-radius:5px;font-size:12px;margin:.5rem 0;display:none;font-family:var(--mono)}
+
+/* 트랙 */
+.track-item{display:grid;grid-template-columns:20px 28px 1fr auto;align-items:center;gap:8px;padding:9px 11px;background:var(--s2);border:1px solid var(--b1);border-radius:6px;transition:border-color .12s}
+.track-item:hover{border-color:var(--b2)}
+.track-item.dragging{opacity:.4}
+.track-item.drag-over{border-color:var(--a1)}
+.drag-h{color:var(--m1);font-size:14px;cursor:grab;text-align:center;user-select:none}
+.ts-tag{font-family:var(--mono);font-size:11px;color:var(--a1);background:var(--a1d);padding:2px 8px;border-radius:20px;white-space:nowrap}
+.src-tag{font-size:10px;padding:1px 6px;border-radius:3px;font-family:var(--mono)}
+.src-yt{background:rgba(255,80,80,.1);color:#ff8080}
+.src-up{background:rgba(111,255,196,.1);color:var(--a3)}
+
+/* 폰트 카드 */
+.font-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:5px}
+.fc{background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:11px 12px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:border-color .12s}
+.fc:hover{border-color:var(--b2)}
+.fc-name{font-size:11px;color:var(--m1);min-width:85px;flex-shrink:0}
+.fc-preview{flex:1;font-size:14px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.sec-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--m1);margin:.875rem 0 .5rem}
+
+/* 가사 결과 */
+.lyrics-res{background:var(--s2);border:1px solid var(--b1);border-radius:8px;margin-bottom:8px;overflow:hidden}
+.lr-head{display:flex;align-items:center;gap:8px;padding:.75rem 1rem;cursor:pointer;transition:background .12s}
+.lr-head:hover{background:var(--s3)}
+.lr-lang{font-size:11px;padding:2px 9px;border-radius:20px;font-family:var(--mono);font-weight:700}
+.lr-body{display:none;border-top:1px solid var(--b1)}
+.lr-body.open{display:block}
+.song-tab-bar{display:flex;gap:0;border-bottom:1px solid var(--b1);overflow-x:auto}
+.song-tab{padding:.5rem .875rem;font-size:12px;color:var(--m2);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+.song-tab:hover{color:var(--tx)}
+.song-tab.active{color:var(--a1);border-bottom-color:var(--a1)}
+.song-pane{display:none;padding:.875rem 1rem}
+.song-pane.active{display:block}
+.lyrics-txt{font-size:12px;line-height:1.9;white-space:pre-wrap;background:var(--s1);padding:.875rem;border-radius:6px;max-height:260px;overflow-y:auto}
+
+/* 프롬프트 카드 */
+.prompt-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:.875rem}
+.pc{background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:.875rem}
+.pc-title{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+.pc-txt{font-size:12px;color:var(--m2);line-height:1.6}
+
+/* 칩 */
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+
+/* 테마 드롭다운 */
+.theme-dropdown{position:relative;width:100%}
+.theme-dropdown-btn{width:100%;padding:9px 11px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--m2);font-family:var(--sans);font-size:13px;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:border-color .2s}
+.theme-dropdown-btn:hover,.theme-dropdown-btn.open{border-color:var(--a1);color:var(--tx)}
+.theme-dropdown-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--s1);border:1px solid var(--b2);border-radius:8px;z-index:50;max-height:420px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.theme-dropdown-panel.open{display:block}
+.theme-cat{padding:.5rem .875rem .2rem;font-size:10px;color:var(--a1);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;border-top:1px solid var(--b1);margin-top:2px}
+.theme-cat:first-child{border-top:none;margin-top:0}
+.theme-opt{padding:.45rem .875rem;font-size:12px;color:var(--m2);cursor:pointer;transition:all .1s;line-height:1.4}
+.theme-opt:hover{background:var(--s2);color:var(--tx)}
+.theme-opt strong{color:var(--tx);font-weight:500;display:block;font-size:13px}
+.theme-opt span{color:var(--m2);font-size:11px}
+.chip{font-size:11px;padding:4px 10px;border-radius:20px;cursor:pointer;border:1px solid;transition:all .12s;background:transparent;font-family:var(--sans)}
+.chip-p{color:var(--a1);border-color:rgba(124,111,255,.25)}.chip-p:hover{background:var(--a1d)}
+.chip-b{color:var(--a2);border-color:rgba(255,111,160,.25)}.chip-b:hover{background:rgba(255,111,160,.1)}
+.chip-g{color:var(--a3);border-color:rgba(111,255,196,.25)}.chip-g:hover{background:rgba(111,255,196,.1)}
+.chip.sel{opacity:.45}
+
+/* 언어 체크박스 */
+.lang-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
+.lang-item{display:flex;align-items:center;gap:6px;padding:7px 10px;background:var(--s2);border:1px solid var(--b1);border-radius:6px;cursor:pointer;transition:border-color .12s;font-size:12px}
+.lang-item:hover{border-color:var(--b2)}
+.lang-item.sel{border-color:var(--a1);background:var(--a1d);color:var(--a1)}
+.lang-item input{display:none}
+
+/* 설정 모달 */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--s1);border:1px solid var(--b2);border-radius:12px;padding:1.5rem;width:440px;max-width:90vw}
+.modal-title{font-size:14px;font-weight:500;margin-bottom:1rem}
+
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+.chip-wrap{position:relative;display:inline-block}
+.chip-tip{position:absolute;bottom:calc(100% + 5px);left:50%;transform:translateX(-50%);background:var(--s1);border:1px solid var(--b2);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--tx);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;z-index:99;font-family:var(--sans);line-height:1.4;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.chip-wrap:hover .chip-tip{opacity:1}
+</style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- 사이드바 -->
+<nav class="sb">
+  <div class="sb-logo">Studio<span>Hub</span></div>
+  <div class="sb-sec">
+    <div class="sb-sec-lbl">음악 제작</div>
+    <div class="sb-item active" data-page="lyrics" onclick="nav(this)"><span class="ic">♪</span>가사 생성기</div>
+    <div class="sb-item" data-page="translate" onclick="nav(this)"><span class="ic">⟷</span>가사 번역</div>
+  </div>
+  <div class="sb-sec">
+    <div class="sb-sec-lbl">YouTube</div>
+    <div class="sb-item" data-page="ytmp3" onclick="nav(this)"><span class="ic">↓</span>YT → MP3</div>
+    <div class="sb-item" data-page="ytopt" onclick="nav(this)"><span class="ic">▶</span>업로드 최적화</div>
+    <div class="sb-item" data-page="channel" onclick="nav(this)"><span class="ic">📊</span>채널 분석</div>
+    <div class="sb-item" data-page="subsync" onclick="nav(this)"><span class="ic">⏱</span>자막 싱크</div>
+  </div>
+  <div class="sb-sec">
+    <div class="sb-sec-lbl">쇼츠 스튜디오</div>
+    <div class="sb-item" data-page="scenes" onclick="nav(this)"><span class="ic">⬡</span>장면 프롬프트</div>
+    <div class="sb-item" data-page="suno-prompt" onclick="nav(this)"><span class="ic">♫</span>Suno 프롬프트</div>
+  </div>
+  <div class="sb-sec">
+    <div class="sb-sec-lbl">도구</div>
+    <div class="sb-item" data-page="fonts" onclick="nav(this)"><span class="ic">Aa</span>폰트 변환기</div>
+    <div class="sb-item" data-page="icons" onclick="nav(this)"><span class="ic">★</span>아이콘 모음</div>
+  </div>
+  <div class="sb-settings">
+    <div class="sb-key-status no" id="key-status" onclick="openSettings()">API 키 설정</div>
+  </div>
+</nav>
+
+<!-- 메인 -->
+<div class="main">
+  <div class="topbar">
+    <div class="tb-title" id="tb-title">가사 생성기</div>
+  </div>
+  <div class="content">
+
+    <!-- ── 가사 생성 ── -->
+    <div class="page active" id="page-lyrics">
+      <div class="card">
+        <div class="card-title">가사 생성기</div>
+        <div class="card-sub">장르·분위기·주제와 세부 옵션을 설정하면 여러 언어로 가사와 Suno 태그를 자동 생성합니다</div>
+
+        <!-- 🎵 트랙 분석 -->
+        <div style="background:var(--s3);border:1px solid var(--b1);border-radius:7px;padding:.875rem;margin-bottom:.875rem">
+          <div style="font-size:11px;color:var(--a3);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.75rem">🎵 트랙 분석으로 옵션 자동 설정</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <label style="flex:1;min-width:200px;display:flex;align-items:center;gap:8px;background:var(--s2);border:1px dashed var(--b2);border-radius:6px;padding:.6rem .875rem;cursor:pointer;font-size:13px;color:var(--m2)" id="track-drop-label">
+              <span style="font-size:16px">🎵</span>
+              <span id="track-file-name">MP3 파일을 드래그하거나 클릭해서 선택</span>
+              <input type="file" id="track-file-input" accept=".mp3,.wav,.m4a,.flac" style="display:none" onchange="onTrackFileSelect(this)">
+            </label>
+            <button class="btn btn-g btn-sm" id="analyze-btn" onclick="analyzeTrack()" style="display:none">🔍 분석 및 옵션 적용</button>
+          </div>
+          <div class="err" id="err-analyze"></div>
+          <div class="prog" id="prog-analyze" style="display:none">
+            <div class="prog-txt">트랙 분석 중... (BPM, 키, 장르 파악)</div>
+            <div class="prog-bar"><div class="prog-fill" style="background:var(--a3)"></div></div>
+          </div>
+          <!-- 분석 결과 요약 -->
+          <div id="analyze-result" style="display:none;margin-top:.75rem;padding:.75rem;background:var(--s2);border-radius:6px;font-size:12px;line-height:1.8">
+            <div id="analyze-summary" style="color:var(--m2);margin-bottom:.5rem"></div>
+            <div id="analyze-tags" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+          </div>
+        </div>
+
+        <!-- 기본 설정 -->
+        <div class="r3">
+          <div class="field">
+            <label>장르</label>
+            <input id="l-genre" type="text" placeholder="lo-fi, R&B, K-pop...">
+            <div class="chips" id="chips-genre"></div>
+          </div>
+          <div class="field">
+            <label>분위기</label>
+            <input id="l-mood" type="text" placeholder="몽환적, 에너제틱, 슬픈...">
+            <div class="chips" id="chips-mood"></div>
+          </div>
+          <div class="field">
+            <label>주제 / 테마</label>
+            <div class="theme-dropdown" id="theme-dd">
+              <button class="theme-dropdown-btn" id="theme-dd-btn" onclick="toggleThemeDD()">
+                <span id="theme-dd-label">직접 입력하거나 아래서 선택</span>
+                <span>▼</span>
+              </button>
+              <div class="theme-dropdown-panel" id="theme-dd-panel"></div>
+            </div>
+            <input id="l-theme" type="text" placeholder="선택하거나 직접 입력..." style="margin-top:5px">
+          </div>
+        </div>
+
+        <!-- 세부 옵션 -->
+        <div style="background:var(--s2);border:1px solid var(--b1);border-radius:7px;padding:.875rem;margin-bottom:.875rem">
+          <div style="font-size:11px;color:var(--a1);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.875rem">세부 설정</div>
+          <div class="r3">
+            <div class="field">
+              <label>BPM</label>
+              <select id="l-bpm">
+                <option value="">설정 안함</option>
+                <option value="slow hip-hop (70-85 BPM)">슬로우 힙합 (70-85)</option>
+                <option value="mid-tempo hip-hop (86-100 BPM)">미드템포 힙합 (86-100)</option>
+                <option value="standard hip-hop (101-115 BPM)">스탠다드 힙합 (101-115)</option>
+                <option value="fast hip-hop (116-130 BPM)">패스트 힙합 (116-130)</option>
+                <option value="trap tempo (130-145 BPM)">트랩 템포 (130-145)</option>
+                <option value="drill tempo (140-150 BPM)">드릴 템포 (140-150)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>가사 밀도</label>
+              <select id="l-length">
+                <option value="">설정 안함</option>
+                <option value="sparse (few words per bar, breathing room, spaced delivery)">스파스 — 여백, 단어 적게</option>
+                <option value="standard bar density (typical hip-hop word count per bar)">스탠다드 — 일반적인 바 밀도</option>
+                <option value="dense (many words per bar, fast delivery)">덴스 — 빽빽, 빠른 딜리버리</option>
+                <option value="multisyllabic (complex internal rhymes, rapid-fire syllables)">멀티실라빅 — 복잡한 내부 라임</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>랩 스타일 / 플로우</label>
+              <select id="l-lyric-style">
+                <option value="">설정 안함</option>
+                <optgroup label="── 클래식 스타일">
+                  <option value="straight rap — steady consistent tempo bar 1 to end, no melodic singing, pure rhythmic flow locked to BPM">스트레이트 랩 — 일정한 BPM, 순수 리드미컬</option>
+                  <option value="boom bap — classic 4/4 bars, punchy on 2 and 4, gritty East Coast delivery">붐뱁 — 이스트코스트 클래식, 2박 4박 강조</option>
+                  <option value="conscious rap — storytelling bars, poetic imagery, spoken word, thoughtful message-driven">컨셔스 랩 — 메시지 중심, 스토리텔링</option>
+                  <option value="jazz rap — laid-back swinging flow, jazzy cadence, sophisticated wordplay">재즈 랩 — 스윙 리듬, 세련된 플로우</option>
+                </optgroup>
+                <optgroup label="── 트랩/드릴 계열">
+                  <option value="trap flow — triplet hi-hat cadence, ad-libs scattered throughout, sliding pitch variations">트랩 플로우 — 트리플렛, 애드립 산발적</option>
+                  <option value="drill flow — dark aggressive, sliding melodic inflections on every bar, menacing tone">드릴 플로우 — 슬라이딩 인플렉션, 위협적</option>
+                  <option value="UK drill flow — distinctive British cadence, staccato delivery, dark minor key feel">UK 드릴 — 영국식 스타카토, 다크 마이너</option>
+                  <option value="phonk rap — dark memphis-style, slow menacing delivery, heavy 808 emphasis, eerie">펑크 랩 — 멤피스 스타일, 느리고 으스스함</option>
+                  <option value="rage rap — chaotic frantic energy, screamed sections, aggressive unpredictable flow">레이지 랩 — 카오틱, 예측불허 플로우</option>
+                </optgroup>
+                <optgroup label="── 멜로딕/감성 계열">
+                  <option value="melodic rap — emotional sung hooks and chorus, rap verses, heartfelt bridge">멜로딕 랩 — 노래하는 훅, 감성적</option>
+                  <option value="emo rap — vulnerable emotional delivery, confessional lyrics, blending singing and rapping">이모 랩 — 고백적, 노래+랩 혼합</option>
+                  <option value="cloud rap — hazy dreamy delivery, atmospheric whispered tone, slow drifting flow">클라우드 랩 — 몽환적, 드리프팅 플로우</option>
+                  <option value="lo-fi rap — relaxed conversational delivery, loose timing, intimate feel">로파이 랩 — 여유로운 대화체, 편안함</option>
+                </optgroup>
+                <optgroup label="── 테크니컬/특수 계열">
+                  <option value="double-time rap — twice the syllable density, rapid-fire delivery at double tempo">더블타임 — 2배속, 고밀도 딜리버리</option>
+                  <option value="aggressive rap — hard-hitting explosive bars, relentless non-stop energy throughout">어그레시브 랩 — 폭발적, 쉬지 않는 에너지</option>
+                  <option value="chopper style — extremely fast technical delivery, maximum syllable density">차퍼 스타일 — 극도로 빠른 테크니컬</option>
+                  <option value="spoken word / poetry — rhythmic but not strictly rapping, prose-like delivery">스포큰 워드 — 시 낭독 스타일</option>
+                  <option value="mumble rap — melody-focused hazy delivery, words blend together, vibe over clarity">멈블 랩 — 흐릿한 멜로디 중심, 바이브 우선</option>
+                  <option value="gangsta rap — street narrative, hard-nosed delivery, West Coast influenced flow">갱스타 랩 — 거리 내러티브, 웨스트코스트</option>
+                </optgroup>
+              </select>
+            </div>
+          </div>
+          <div class="r3">
+            <div class="field">
+              <label>비트 / 프로덕션</label>
+              <select id="l-instrument">
+                <option value="">설정 안함</option>
+                <optgroup label="── 클래식/샘플 기반">
+                  <option value="boom bap drums (vinyl samples, punchy kick and snare, classic hip-hop groove)">붐뱁 드럼 — 바이닐 샘플, 묵직한 킥/스네어, 90년대 클래식</option>
+                  <option value="jazz rap (live jazz samples, upright bass, brushed snare, sophisticated)">재즈 랩 — 라이브 재즈, 더블베이스, 세련된 사운드</option>
+                  <option value="soul samples (chopped soul vocals, warm organ, funky groove drums)">소울 샘플 — 찹드 소울 보컬, 따뜻한 오르간, 펑키 그루브</option>
+                  <option value="funk-influenced hip-hop (live bass, guitar licks, drum breaks, groovy)">펑크 힙합 — 라이브 베이스, 기타 릭, 드럼 브레이크</option>
+                  <option value="gospel hip-hop (choir samples, organ stabs, uplifting drums)">가스펠 힙합 — 합창 샘플, 오르간 스탭, 고양감</option>
+                </optgroup>
+                <optgroup label="── 트랩/현대 계열">
+                  <option value="trap 808 bass (rolling hi-hats, deep 808 sub-bass, snappy snare)">트랩 808 — 롤링 하이햇, 깊은 808, 스냅 스네어</option>
+                  <option value="drill beats (dark minor key melody, sliding 808 bass, aggressive ominous drums)">드릴 비트 — 다크 마이너, 슬라이딩 808</option>
+                  <option value="UK drill (dark orchestral stabs, rolling hi-hats, heavy 808 UK style)">UK 드릴 — 오케스트라 스탭, UK 스타일 808</option>
+                  <option value="minimal trap (sparse hi-hats, deep sub-bass, lots of empty space)">미니멀 트랩 — 여백 많고 서브베이스 중심</option>
+                  <option value="rage beat (distorted 808, chaotic dark synth, explosive energy)">레이지 비트 — 디스토션 808, 카오틱 다크 신스</option>
+                  <option value="phonk (memphis choir stabs, heavy distorted 808, eerie slow atmosphere)">펑크 — 멤피스 합창, 디스토션 808, 으스스함</option>
+                </optgroup>
+                <optgroup label="── 분위기/감성 계열">
+                  <option value="lo-fi hip-hop (dusty jazz samples, mellow drums, vinyl crackle, cozy)">로파이 힙합 — 더스티 재즈, 바이닐 크래클, 아늑함</option>
+                  <option value="cloud rap beats (dreamy synths, reverb-drenched samples, hazy atmosphere)">클라우드 랩 — 드리미 신스, 리버브 가득, 헤이지</option>
+                  <option value="emo rap production (guitar-based, emotional piano, atmospheric pads)">이모 랩 — 기타 베이스, 감성 피아노, 분위기 패드</option>
+                  <option value="dark ambient hip-hop (atmospheric textures, minor key pads, eerie samples)">다크 앰비언트 — 텍스처, 마이너 패드, 불길한 샘플</option>
+                </optgroup>
+                <optgroup label="── 웅장/퓨전 계열">
+                  <option value="orchestral hip-hop (strings, brass, cinematic grand scale production)">오케스트라 힙합 — 현악, 브라스, 시네마틱</option>
+                  <option value="afrobeats hip-hop fusion (afro percussion, melodic synths, bouncy groove)">아프로힙합 — 아프로 타악기, 멜로디 신스</option>
+                  <option value="latin trap (reggaeton-influenced rhythm, 808, spanish guitar elements)">라틴 트랩 — 레게톤 리듬, 808, 스패니쉬 기타</option>
+                  <option value="alternative hip-hop (experimental sounds, unconventional structure, art-focused)">얼터너티브 힙합 — 실험적, 비정형 구조</option>
+                </optgroup>
+              </select>
+            </div>
+            <div class="field">
+              <label>보컬 구성</label>
+              <select id="l-vocal-type" onchange="updateVocalUI()">
+                <option value="single">솔로 래퍼</option>
+                <option value="dual">래퍼 + 훅 싱어 분리</option>
+                <option value="call-response">주고받기 / 피처링</option>
+                <option value="harmony">백킹 보컬 + 래퍼</option>
+              </select>
+            </div>
+            <!-- 단독 래퍼 -->
+            <div id="vocal-single" class="field">
+              <label>래퍼 타입</label>
+              <select id="l-vocal">
+                <option value="">설정 안함</option>
+                <option value="male rapper, aggressive hard-hitting delivery">남성 래퍼 — 어그레시브</option>
+                <option value="male rapper, smooth laid-back cool delivery">남성 래퍼 — 스무스/쿨</option>
+                <option value="male rapper, fast technical rapid-fire delivery">남성 래퍼 — 패스트/테크니컬</option>
+                <option value="male rapper, deep baritone voice, authoritative">남성 래퍼 — 딥 배리톤</option>
+                <option value="male rapper, raspy husky gritty voice">남성 래퍼 — 허스키/그리티</option>
+                <option value="female rapper, assertive dominant delivery">여성 래퍼 — 어서티브</option>
+                <option value="female rapper, melodic rap hybrid delivery">여성 래퍼 — 멜로딕 랩</option>
+                <option value="female rapper, fast aggressive delivery">여성 래퍼 — 패스트/어그레시브</option>
+                <option value="rapper who self-sings hooks with auto-tune">래퍼 직접 오토튠 훅</option>
+                <option value="mumble rapper, melodic hazy delivery">멈블 래퍼 — 멜로딕, 몽환</option>
+              </select>
+            </div>
+            <!-- 래퍼 + 훅 싱어 분리 -->
+            <div id="vocal-dual" style="display:none">
+              <div class="r2">
+                <div class="field"><label>벌스 (래퍼)</label>
+                  <select id="l-vocal-verse">
+                    <option value="male rapper, aggressive delivery">남성 래퍼 — 어그레시브</option>
+                    <option value="male rapper, smooth delivery">남성 래퍼 — 스무스</option>
+                    <option value="male rapper, fast technical">남성 래퍼 — 패스트</option>
+                    <option value="female rapper, assertive">여성 래퍼 — 어서티브</option>
+                    <option value="female rapper, melodic">여성 래퍼 — 멜로딕</option>
+                  </select>
+                </div>
+                <div class="field"><label>훅 (싱어)</label>
+                  <select id="l-vocal-chorus">
+                    <option value="female singer, melodic hook">여성 싱어 — 멜로딕 훅</option>
+                    <option value="male singer, soulful hook">남성 싱어 — 소울풀 훅</option>
+                    <option value="female singer, powerful hook">여성 싱어 — 파워풀 훅</option>
+                    <option value="rapper self-sung hook with auto-tune">래퍼 자체 오토튠 훅</option>
+                    <option value="group harmonized hook">그룹 하모니 훅</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field"><label>브릿지 보컬 (선택)</label>
+                <select id="l-vocal-bridge">
+                  <option value="">훅과 동일</option>
+                  <option value="spoken word outro by rapper">래퍼 스포큰 워드</option>
+                  <option value="emotional sung bridge">감성 브릿지</option>
+                  <option value="double-time rap bridge">더블타임 랩 브릿지</option>
+                </select>
+              </div>
+            </div>
+            <!-- 주고받기 / 피처링 -->
+            <div id="vocal-call-response" style="display:none">
+              <div class="r2">
+                <div class="field"><label>메인 래퍼</label>
+                  <select id="l-vocal-call">
+                    <option value="male rapper, aggressive">남성 래퍼 — 어그레시브</option>
+                    <option value="male rapper, smooth">남성 래퍼 — 스무스</option>
+                    <option value="female rapper, assertive">여성 래퍼 — 어서티브</option>
+                  </select>
+                </div>
+                <div class="field"><label>피처링</label>
+                  <select id="l-vocal-response">
+                    <option value="featured male rapper, different flow">남성 래퍼 피처링</option>
+                    <option value="featured female rapper">여성 래퍼 피처링</option>
+                    <option value="female singer on hooks">여성 싱어 훅</option>
+                    <option value="male singer on hooks">남성 싱어 훅</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field"><label>교체 패턴</label>
+                <select id="l-vocal-pattern">
+                  <option value="alternating verses (each rapper gets own verse)">버스 단위 교체</option>
+                  <option value="alternating 4-bar sections within verse">4바 단위 교체</option>
+                  <option value="rapper verses, featured sings hook">래퍼 버스 + 피처링 훅</option>
+                </select>
+              </div>
+            </div>
+            <!-- 백킹 보컬 + 래퍼 -->
+            <div id="vocal-harmony" style="display:none">
+              <div class="r2">
+                <div class="field"><label>메인 래퍼</label>
+                  <select id="l-vocal-main">
+                    <option value="male rapper, dominant lead">남성 래퍼 리드</option>
+                    <option value="female rapper, dominant lead">여성 래퍼 리드</option>
+                  </select>
+                </div>
+                <div class="field"><label>백킹 스타일</label>
+                  <select id="l-vocal-harmony-type">
+                    <option value="subtle background ad-libs">서틀 백킹 + 애드립</option>
+                    <option value="gospel-style backing choir">가스펠 백킹</option>
+                    <option value="layered harmonies on hook">훅에 레이어드 하모니</option>
+                    <option value="auto-tuned background vocals">오토튠 백그라운드</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+                        <!-- 보컬 톤 (공통) -->
+            <div class="field" style="margin-top:.5rem">
+              <label>보컬 톤 <span style="font-size:11px;color:var(--m2)">(다중 선택 가능)</span></label>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:5px" id="vocal-tone-grid"></div>
+            </div>
+            <div class="field">
+              <label>분위기 / 사운드스케이프</label>
+              <select id="l-sound">
+                <option value="">설정 안함</option>
+                <optgroup label="── 공간감/텍스처">
+                  <option value="dry close-mic, no reverb, raw intimate punchy sound">드라이 — 리버브 없이 날것. 바짝 댄 마이크, 펀치감</option>
+                  <option value="heavy reverb, spacious atmospheric room sound">헤비 리버브 — 공간감 넘치고 웅장하게 울림</option>
+                  <option value="lo-fi warm vinyl crackle, dusty nostalgic texture">로파이 바이닐 — 따뜻하고 먼지 낀 아날로그 질감</option>
+                  <option value="hazy dreamy washed-out atmospheric, cloud-like">헤이지/드리미 — 흐릿하고 몽환적. 클라우드 랩 안개</option>
+                  <option value="crisp clear polished radio-ready mix">크리스프/클리어 — 깨끗하고 세련된 라디오 레디</option>
+                </optgroup>
+                <optgroup label="── 분위기/감정">
+                  <option value="dark and gloomy, minor key, ominous heavy atmosphere">다크/글루미 — 어둡고 불길하고 묵직한 분위기</option>
+                  <option value="bright energetic punchy, club-ready high-energy">브라이트/에너제틱 — 밝고 클럽에서 틀 것 같은</option>
+                  <option value="melancholic emotional, bittersweet mood, minor key warmth">멜랑콜릭 — 쓸쓸하고 감성적. 달콤쌉싸름한</option>
+                  <option value="aggressive hard industrial, dark mechanical energy">어그레시브/인더스트리얼 — 강렬하고 기계적인 에너지</option>
+                  <option value="eerie unsettling, creepy phonk-like atmosphere">이어리/크리피 — 으스스하고 불안한. 펑크 분위기</option>
+                  <option value="uplifting anthemic, triumphant feel-good energy">업리프팅/앤섬 — 고양감 있고 승리하는 느낌</option>
+                </optgroup>
+                <optgroup label="── 프로덕션 스타일">
+                  <option value="trap-style heavy 808 bass dominating the mix">트랩 베이스 — 808이 믹스를 지배하는 진동하는 저음</option>
+                  <option value="rage chaotic distorted overdriven heavy production">레이지/카오틱 — 디스토션 걸린 폭발적이고 혼돈스러운</option>
+                  <option value="cinematic orchestral epic grand scale production">시네마틱/오케스트라 — 영화 OST 같은 웅장함</option>
+                  <option value="smooth R&B-influenced warm polished glossy production">스무스 R&B — 부드럽고 광택 있는 따뜻한 프로덕션</option>
+                  <option value="minimalist sparse production, space and silence emphasized">미니멀리스트 — 여백과 침묵을 강조한 극도로 심플</option>
+                  <option value="vintage golden era hip-hop production aesthetic">빈티지/골든에라 — 90년대 힙합 황금기 프로덕션</option>
+                </optgroup>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 피할 표현 -->
+        <div class="field" style="margin-bottom:.875rem">
+          <label>피할 표현 / 클리셰 <span style="font-size:11px;color:var(--m2)">(선택 — 쉼표로 구분)</span></label>
+          <input id="l-avoid" type="text" placeholder="예: 눈물, 별빛, baby, yeah, 꿈을 향해...">
+          <div style="font-size:11px;color:var(--m2);margin-top:3px">입력한 표현은 가사에 절대 사용하지 않습니다</div>
+        </div>
+
+        <!-- 구성 & 언어 -->
+        <div class="r2">
+          <div class="field">
+            <label>곡 구성</label>
+            <select id="l-structure">
+              <optgroup label="── 일반 팝/발라드 ──">
+                <option value="[Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Chorus]">일반 (Verse-Chorus-Bridge)</option>
+                <option value="[Verse 1], [Chorus], [Verse 2], [Chorus]">단순 (Verse-Chorus)</option>
+                <option value="[Intro], [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Pre-Chorus], [Chorus], [Bridge], [Outro]">풀 구성 (Intro-Pre-Bridge-Outro)</option>
+                <option value="[Verse 1], [Verse 2], [Chorus], [Verse 3], [Outro]">포크/스토리텔링</option>
+              </optgroup>
+              <optgroup label="── 힙합 / 랩 ──">
+                <option value="[Verse 1], [Hook], [Verse 2], [Hook], [Verse 3], [Hook]">벌스-훅 (랩 기본)</option>
+                <option value="[Intro], [Verse 1], [Hook], [Verse 2], [Hook], [Bridge], [Outro]">랩 풀 구성 (Intro-Bridge-Outro)</option>
+                <option value="[Hook], [Verse 1], [Hook], [Verse 2], [Hook], [Verse 3], [Hook]">훅 선행 (Hook-Verse)</option>
+                <option value="[Verse 1], [Hook], [Verse 2], [Hook], [Verse 3]">벌스 3절 구성</option>
+                <option value="[Intro (rap)], [Verse 1], [Hook], [Verse 2], [Hook], [Outro (rap)]">랩 인트로/아웃트로</option>
+                <option value="[Verse 1], [Verse 2], [Verse 3], [Verse 4]">풀 랩 (벌스만, 노래 없음)</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="field">
+            <label>생성 곡 수</label>
+            <select id="l-count">
+              <option value="1">1곡</option>
+              <option value="2">2곡</option>
+              <option value="3">3곡</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>생성할 언어 선택 (다중 선택 가능)</label>
+          <div class="lang-grid" id="lang-grid"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:.5rem;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-p" id="l-btn" onclick="genLyrics()">♪ 가사 생성</button>
+          <button class="btn btn-g btn-sm" onclick="exportToSunoPrompt()">♫ Suno 프롬프트로 내보내기</button>
+          <button class="btn btn-g btn-sm" onclick="loadLastOpts()" id="load-opts-btn" style="display:none">↩ 이전 설정 불러오기</button>
+          <span id="last-opts-hint" style="font-size:11px;color:var(--m2)"></span>
+        </div>
+        <div class="err" id="err-l"></div>
+        <div class="prog" id="prog-l"><div class="prog-txt" id="prog-l-txt">생성 중...</div><div class="prog-bar"><div class="prog-fill"></div></div></div>
+      </div>
+      <div id="lyrics-results"></div>
+    </div>
+
+    <!-- ── 번역 ── -->
+    <div class="page" id="page-translate">
+      <div class="card">
+        <div class="card-title">가사 번역</div>
+        <div class="card-sub">번역할 언어를 여러 개 선택하면 동시에 번역됩니다</div>
+        <div class="field">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <label>원문 가사</label>
+            <button class="cp" id="polish-btn" onclick="polishLyrics()" style="color:var(--a4);border-color:rgba(255,202,111,.3)">✦ 영어 가사 다듬기</button>
+          </div>
+          <textarea id="tr-in" style="min-height:160px" placeholder="번역할 가사를 입력하세요..."></textarea>
+          <div style="font-size:11px;color:var(--m2);margin-top:3px">영어 원문이 어색하다면 먼저 다듬기를 실행하세요 — 다듬어진 영어를 기준으로 모든 언어가 번역됩니다</div>
+          <div class="prog" id="prog-polish" style="margin-top:6px">
+            <div class="prog-txt">영어 가사 다듬는 중...</div>
+            <div class="prog-bar"><div class="prog-fill" style="background:var(--a4)"></div></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>번역할 언어 <span style="font-size:11px;color:var(--m2)">(다중 선택)</span></label>
+          <div class="lang-grid" id="tr-lang-grid"></div>
+        </div>
+        <button class="btn btn-p" id="tr-btn" onclick="doTranslate()">⟷ 번역</button>
+        <div class="err" id="err-tr"></div>
+        <div class="prog" id="prog-tr">
+          <div class="prog-txt" id="prog-tr-txt">번역 중...</div>
+          <div class="prog-bar"><div class="prog-fill" style="background:var(--a2)"></div></div>
+        </div>
+        <div id="tr-results" style="margin-top:1rem"></div>
+      </div>
+    </div>
+
+    <!-- ── YT MP3 ── -->
+    <div class="page" id="page-ytmp3">
+      <div class="r2" style="gap:12px">
+        <!-- YouTube 변환 -->
+        <div class="card">
+          <div class="card-title">YouTube 변환</div>
+          <div class="field"><input id="yt-url" type="text" placeholder="youtube.com/watch?v=..."></div>
+          <button class="btn btn-p" id="yt-btn" onclick="ytDownload()">변환 시작</button>
+          <div class="err" id="err-yt"></div>
+          <div class="prog" id="prog-yt"><div class="prog-txt" id="prog-yt-txt">추출 중...</div><div class="prog-bar"><div class="prog-fill"></div></div></div>
+        </div>
+        <!-- MP3 업로드 -->
+        <div class="card">
+          <div class="card-title">MP3 업로드</div>
+          <div style="border:1.5px dashed var(--b2);border-radius:7px;padding:1.5rem;text-align:center;cursor:pointer" onclick="document.getElementById('mp3-input').click()" id="mp3-drop">
+            <div style="font-size:20px;margin-bottom:6px">♪</div>
+            <div style="font-size:13px;font-weight:500;margin-bottom:3px">파일 드래그 또는 클릭</div>
+            <div style="font-size:11px;color:var(--m2)">여러 파일 동시 선택 가능</div>
+          </div>
+          <input type="file" id="mp3-input" accept=".mp3" multiple style="display:none" onchange="uploadMp3(this)">
+        </div>
+      </div>
+      <!-- 트랙 목록 -->
+      <div id="track-section" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+          <span style="font-size:12px;color:var(--m2)" id="track-meta"></span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-g btn-sm" onclick="savePlaylist()">💾 저장</button>
+            <button class="btn btn-g btn-sm" onclick="document.getElementById('load-pl').click()">📂 불러오기</button>
+            <input type="file" id="load-pl" accept=".json" style="display:none" onchange="loadPlaylist(this)">
+            <button class="btn btn-g btn-sm" onclick="clearTracks()">초기화</button>
+          </div>
+        </div>
+        <p style="font-size:11px;color:var(--m1);margin-bottom:7px">≡ 드래그로 순서 변경 — 타임스탬프 자동 재계산</p>
+        <div id="track-list" style="display:flex;flex-direction:column;gap:3px"></div>
+        <div style="margin-top:1rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:12px;color:var(--m2)">YouTube 타임스탬프</span>
+            <button class="cp" onclick="copyTimestamp(this)">복사</button>
+          </div>
+          <div style="font-family:var(--mono);font-size:12px;line-height:1.9;white-space:pre-wrap;background:var(--s2);padding:.875rem;border-radius:6px;max-height:200px;overflow-y:auto;color:var(--m2)" id="timestamp-txt"></div>
+        </div>
+      </div>
+      <div id="yt-empty" style="text-align:center;padding:3rem;color:var(--m2);font-size:13px">YouTube 링크를 변환하거나 MP3 파일을 업로드하세요</div>
+    </div>
+
+    <!-- ── YouTube 업로드 최적화 ── -->
+    <div class="page" id="page-ytopt">
+      <div class="card">
+        <div class="card-title">YouTube 업로드 최적화</div>
+        <div class="card-sub">유사 영상을 검색해서 제목·태그·설명을 분석하고 최적화된 추천을 생성합니다</div>
+
+        <!-- API 키 상태 -->
+        <div id="yt-api-notice" style="background:rgba(255,202,111,.08);border:1px solid rgba(255,202,111,.2);border-radius:6px;padding:9px 12px;margin-bottom:1rem;font-size:12px;color:var(--a4);display:none">
+          YouTube Data API 키가 설정되지 않았습니다. 아래 설정에서 입력해주세요.
+        </div>
+
+        <div class="r2">
+          <div class="field"><label>노래 제목</label><input id="yo-title" type="text" placeholder="업로드할 노래 제목"></div>
+          <div class="field"><label>장르</label><input id="yo-genre" type="text" placeholder="lo-fi, R&B, K-pop..."></div>
+        </div>
+        <div class="r2">
+          <div class="field"><label>분위기 / 키워드</label><input id="yo-mood" type="text" placeholder="새벽, 감성, 힐링..."></div>
+          <div class="field"><label>검색 언어 / 타겟 국가</label>
+            <select id="yo-lang">
+              <option value="ko">🇰🇷 한국어 (한국)</option>
+              <option value="en">🇺🇸 영어 (글로벌)</option>
+              <option value="ja">🇯🇵 일본어</option>
+              <option value="zh">🇹🇼 중국어 (번체)</option>
+              <option value="pt">🇧🇷 포르투갈어 (브라질)</option>
+              <option value="es">🇪🇸 스페인어 (중남미/스페인)</option>
+              <option value="vi">🇻🇳 베트남어</option>
+              <option value="de">🇩🇪 독일어</option>
+              <option value="it">🇮🇹 이탈리아어</option>
+              <option value="nl">🇳🇱 네덜란드어</option>
+              <option value="sv">🇸🇪 스웨덴어</option>
+            </select>
+          </div>
+        </div>
+        <div class="field"><label>가사 일부 (선택)</label>
+          <textarea id="yo-lyrics" style="min-height:70px" placeholder="가사 일부를 넣으면 더 정확한 설명이 생성됩니다"></textarea>
+        </div>
+
+        <!-- 검색 결과 분석 옵션 -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:.875rem">
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="yo-titles" checked> 제목 추천</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="yo-desc" checked> 설명 생성</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="yo-tags" checked> 태그 추천</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="yo-comment" checked> 고정 댓글</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="yo-hashtags" checked> 해시태그</label>
+        </div>
+
+        <button class="btn btn-p" id="yo-btn" onclick="genYtOpt()">▶ 분석 및 추천 생성</button>
+        <div class="err" id="err-yo"></div>
+        <div class="prog" id="prog-yo">
+          <div class="prog-txt" id="prog-yo-txt">유사 영상 검색 중...</div>
+          <div class="prog-bar"><div class="prog-fill" style="background:var(--a2)"></div></div>
+        </div>
+      </div>
+
+      <!-- 결과 -->
+      <div id="yo-results" style="display:none">
+        <!-- 참고 영상 -->
+        <div class="card" id="yo-refs-card" style="display:none">
+          <div class="card-title" style="margin-bottom:.75rem">참고한 유사 영상 <span id="yo-refs-count" style="font-size:11px;color:var(--m2)"></span></div>
+          <div id="yo-refs-list" style="display:flex;flex-direction:column;gap:4px"></div>
+        </div>
+
+        <!-- 제목 추천 -->
+        <div class="card" id="yo-titles-card" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+            <span style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--a2)">추천 제목</span>
+          </div>
+          <div id="yo-titles-list" style="display:flex;flex-direction:column;gap:5px"></div>
+        </div>
+
+        <!-- 설명 -->
+        <div class="card" id="yo-desc-card" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+            <span style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--a2)">영상 설명</span>
+            <button class="cp" onclick="cpEl('yo-desc-txt',this)">복사</button>
+          </div>
+          <div id="yo-desc-txt" style="font-size:12px;line-height:1.8;white-space:pre-wrap;background:var(--s2);padding:.875rem;border-radius:6px;max-height:220px;overflow-y:auto"></div>
+        </div>
+
+        <!-- 태그 + 해시태그 -->
+        <div class="r2" style="gap:10px">
+          <div class="card" id="yo-tags-card" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+              <span style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--a2)">태그</span>
+              <button class="cp" onclick="cpEl('yo-tags-txt',this)">복사</button>
+            </div>
+            <div id="yo-tags-txt" style="font-size:12px;color:var(--m2);line-height:1.8"></div>
+          </div>
+          <div class="card" id="yo-hashtags-card" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+              <span style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--a2)">해시태그</span>
+              <button class="cp" onclick="cpEl('yo-hashtags-txt',this)">복사</button>
+            </div>
+            <div id="yo-hashtags-txt" style="font-size:12px;color:var(--a1);line-height:1.8"></div>
+          </div>
+        </div>
+
+        <!-- 고정 댓글 -->
+        <div class="card" id="yo-comment-card" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+            <span style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--a2)">고정 댓글</span>
+            <button class="cp" onclick="cpEl('yo-comment-txt',this)">복사</button>
+          </div>
+          <div id="yo-comment-txt" style="font-size:12px;line-height:1.8;white-space:pre-wrap;background:var(--s2);padding:.875rem;border-radius:6px"></div>
+        </div>
+      </div>
+
+      <!-- YouTube API 키 설정 -->
+      <div class="card" style="margin-top:.5rem">
+        <div class="card-title" style="margin-bottom:.75rem">YouTube Data API 키</div>
+        <div class="field">
+          <input id="yt-api-key-input" type="password" placeholder="AIza...">
+          <div style="font-size:11px;color:var(--m2);margin-top:4px">
+            <a href="https://console.cloud.google.com" target="_blank" style="color:var(--a1)">console.cloud.google.com</a>
+            → YouTube Data API v3 → 사용자 인증 정보 → API 키
+          </div>
+        </div>
+        <button class="btn btn-g btn-sm" onclick="saveYtApiKey()">저장</button>
+        <div style="font-size:11px;color:var(--m2);margin-top:.75rem;line-height:1.7">
+          무료 할당량: 하루 10,000 유닛 · 검색 1회 = 약 100 유닛 · 영상 상세 조회 = 1 유닛/건
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 프롬프트 생성 ── -->
+    <div class="page" id="page-prompts">
+      <div class="card">
+        <div class="card-title">쇼츠 프롬프트 생성</div>
+        <div class="card-sub">음악 정보를 입력하면 Midjourney · Suno · CapCut 프롬프트를 자동 생성합니다</div>
+        <div class="r2">
+          <div class="field">
+            <label>장르</label><input id="pr-genre" type="text" placeholder="lo-fi, cinematic pop...">
+          </div>
+          <div class="field">
+            <label>분위기</label><input id="pr-mood" type="text" placeholder="몽환적, 에너제틱...">
+          </div>
+        </div>
+        <div class="field"><label>키워드 / 주제</label><input id="pr-kw" type="text" placeholder="새벽 도시, 빗소리, 네온..."></div>
+        <div class="field"><label>비주얼 스타일</label><input id="pr-style" type="text" placeholder="아니메, 수채화, 사이버펑크..."></div>
+        <button class="btn btn-p" id="pr-btn" onclick="genPrompts()">✦ 프롬프트 생성</button>
+        <div class="err" id="err-pr"></div>
+        <div class="prog" id="prog-pr"><div class="prog-txt">생성 중...</div><div class="prog-bar"><div class="prog-fill" style="background:var(--a4)"></div></div></div>
+        <div class="prompt-grid" id="prompt-result" style="display:none">
+          <div class="pc"><div class="pc-title" style="color:var(--a1)">Midjourney</div><div class="pc-txt" id="pc-mj"></div><div style="margin-top:7px"><button class="cp" onclick="cpEl('pc-mj',this)">복사</button></div></div>
+          <div class="pc"><div class="pc-title" style="color:var(--a3)">Suno 태그</div><div class="pc-txt" id="pc-sn"></div><div style="margin-top:7px"><button class="cp" onclick="cpEl('pc-sn',this)">복사</button></div></div>
+          <div class="pc" style="grid-column:1/-1"><div class="pc-title" style="color:var(--a2)">CapCut 편집 제안</div><div class="pc-txt" id="pc-cc"></div><div style="margin-top:7px"><button class="cp" onclick="cpEl('pc-cc',this)">복사</button></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 장면 프롬프트 ── -->
+    <div class="page" id="page-scenes">
+      <div class="card">
+        <div class="card-title">가사 → 애니메이션 장면 프롬프트</div>
+        <div class="card-sub">가사를 입력하면 Midjourney용 장면 프롬프트 10개를 자동 생성합니다</div>
+        <div class="field"><label>가사</label><textarea id="sc-lyrics" style="min-height:140px" placeholder="가사를 입력하세요..."></textarea></div>
+        <div class="field">
+          <label>애니메이션 스타일</label>
+          <div class="chips" style="margin-bottom:6px">
+            <button class="chip chip-p" onclick="setStyle(this,'Studio Ghibli anime style')">지브리</button>
+            <button class="chip chip-p" onclick="setStyle(this,'modern anime style, vibrant colors')">현대 애니</button>
+            <button class="chip chip-p" onclick="setStyle(this,'dark fantasy anime, dramatic')">다크 판타지</button>
+            <button class="chip chip-p" onclick="setStyle(this,'slice of life anime, soft pastel')">일상물</button>
+            <button class="chip chip-p" onclick="setStyle(this,'cyberpunk anime, neon lights')">사이버펑크</button>
+            <button class="chip chip-p" onclick="setStyle(this,'watercolor anime, painterly')">수채화</button>
+            <button class="chip chip-p" onclick="setStyle(this,'retro 90s anime, cel shading')">90s 레트로</button>
+          </div>
+          <input id="sc-style" type="text" value="modern anime style, vibrant colors">
+        </div>
+        <button class="btn btn-p" id="sc-btn" onclick="genScenes()">⬡ 장면 프롬프트 생성</button>
+        <div class="err" id="err-sc"></div>
+        <div class="prog" id="prog-sc"><div class="prog-txt">장면 분석 중...</div><div class="prog-bar"><div class="prog-fill" style="background:var(--a2)"></div></div></div>
+        <div id="scenes-result" style="display:none;margin-top:1rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <span style="font-family:var(--mono);font-size:11px;color:var(--m2)">장면 프롬프트 10개</span>
+            <button class="cp" onclick="copyAllScenes(this)">전체 복사</button>
+          </div>
+          <div id="scenes-list" style="display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Suno 프롬프트 생성기 ── -->
+    <div class="page" id="page-suno-prompt">
+      <div class="card">
+        <div class="card-title">Suno 프롬프트 생성기</div>
+        <div class="card-sub">가사 없이 옵션만으로 Suno에 바로 쓸 수 있는 스타일 태그와 제목 아이디어를 생성합니다</div>
+
+        <!-- 기본 설정 -->
+        <div class="r3">
+          <div class="field">
+            <label>장르</label>
+            <input id="sp-genre" type="text" placeholder="lo-fi, R&B, K-pop...">
+            <div class="chips" id="sp-chips-genre"></div>
+          </div>
+          <div class="field">
+            <label>분위기</label>
+            <input id="sp-mood" type="text" placeholder="몽환적, 에너제틱, 슬픈...">
+            <div class="chips" id="sp-chips-mood"></div>
+          </div>
+          <div class="field">
+            <label>주제 / 테마</label>
+            <div class="theme-dropdown" id="sp-theme-dd">
+              <button class="theme-dropdown-btn" id="sp-theme-dd-btn" onclick="toggleSpThemeDD()">
+                <span id="sp-theme-dd-label">직접 입력하거나 아래서 선택</span>
+                <span>▼</span>
+              </button>
+              <div class="theme-dropdown-panel" id="sp-theme-dd-panel"></div>
+            </div>
+            <input id="sp-theme" type="text" placeholder="선택하거나 직접 입력..." style="margin-top:5px">
+          </div>
+        </div>
+
+        <!-- 세부 옵션 -->
+        <div style="background:var(--s2);border:1px solid var(--b1);border-radius:7px;padding:.875rem;margin-bottom:.875rem">
+          <div style="font-size:11px;color:var(--a1);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.875rem">세부 설정</div>
+          <div class="r3">
+            <div class="field">
+              <label>BPM</label>
+              <select id="sp-bpm">
+                <option value="">설정 안함</option>
+                <option value="slow (60-75 BPM)">느림 (60-75 BPM)</option>
+                <option value="mid-tempo (76-100 BPM)">중간 (76-100 BPM)</option>
+                <option value="moderate (101-120 BPM)">보통 (101-120 BPM)</option>
+                <option value="upbeat (121-140 BPM)">빠름 (121-140 BPM)</option>
+                <option value="fast (141-160 BPM)">매우 빠름 (141-160 BPM)</option>
+                <option value="very fast (160+ BPM)">초고속 (160+ BPM)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>가사 스타일</label>
+              <select id="sp-lyric-style">
+                <option value="">설정 안함</option>
+                <optgroup label="── 랩 ──">
+                  <option value="straight rap style — steady tempo from start to finish, consistent rhythmic bars at fixed BPM, no singing, pure rap flow throughout">스트레이트 랩 (일정한 속도)</option>
+                  <option value="rap/hip-hop style (rhythmic bars, rhyme scheme, flow)">랩/힙합</option>
+                  <option value="trap style (ad-libs, triplet flow, short punchy bars)">트랩</option>
+                  <option value="boom bap rap style (classic 4/4 bars, punchy delivery, no melodic singing)">붐뱁 랩</option>
+                  <option value="drill rap style (dark, aggressive, sliding flow, minimal hook)">드릴 랩</option>
+                  <option value="conscious rap style (storytelling bars, meaningful lyrics, spoken word feel)">컨셔스 랩</option>
+                </optgroup>
+                <optgroup label="── 노래 ──">
+                  <option value="ballad style (long phrases, emotional, melodic flow)">발라드</option>
+                  <option value="pop style (catchy hooks, repetitive chorus, singable)">팝</option>
+                  <option value="R&B style (smooth, soulful, melismatic phrases)">R&B</option>
+                  <option value="rock style (punchy lines, anthemic chorus, raw energy)">록</option>
+                  <option value="folk/acoustic style (storytelling, narrative, poetic)">포크/어쿠스틱</option>
+                </optgroup>
+              </select>
+            </div>
+            <div class="field">
+              <label>주요 악기</label>
+              <select id="sp-instrument">
+                <option value="">설정 안함</option>
+                <optgroup label="── 클래식/샘플 기반">
+                  <option value="boom bap drums (vinyl samples, punchy kick and snare, classic hip-hop groove)">붐뱁 드럼 — 바이닐 샘플, 묵직한 킥/스네어, 90년대 클래식</option>
+                  <option value="jazz rap (live jazz samples, upright bass, brushed snare, sophisticated)">재즈 랩 — 라이브 재즈, 더블베이스, 세련된 사운드</option>
+                  <option value="soul samples (chopped soul vocals, warm organ, funky groove drums)">소울 샘플 — 찹드 소울 보컬, 따뜻한 오르간, 펑키 그루브</option>
+                  <option value="funk-influenced hip-hop (live bass, guitar licks, drum breaks, groovy)">펑크 힙합 — 라이브 베이스, 기타 릭, 드럼 브레이크</option>
+                  <option value="gospel hip-hop (choir samples, organ stabs, uplifting drums)">가스펠 힙합 — 합창 샘플, 오르간 스탭, 고양감</option>
+                </optgroup>
+                <optgroup label="── 트랩/현대 계열">
+                  <option value="trap 808 bass (rolling hi-hats, deep 808 sub-bass, snappy snare)">트랩 808 — 롤링 하이햇, 깊은 808, 스냅 스네어</option>
+                  <option value="drill beats (dark minor key melody, sliding 808 bass, aggressive ominous drums)">드릴 비트 — 다크 마이너, 슬라이딩 808</option>
+                  <option value="UK drill (dark orchestral stabs, rolling hi-hats, heavy 808 UK style)">UK 드릴 — 오케스트라 스탭, UK 스타일 808</option>
+                  <option value="minimal trap (sparse hi-hats, deep sub-bass, lots of empty space)">미니멀 트랩 — 여백 많고 서브베이스 중심</option>
+                  <option value="rage beat (distorted 808, chaotic dark synth, explosive energy)">레이지 비트 — 디스토션 808, 카오틱 다크 신스</option>
+                  <option value="phonk (memphis choir stabs, heavy distorted 808, eerie slow atmosphere)">펑크 — 멤피스 합창, 디스토션 808, 으스스함</option>
+                </optgroup>
+                <optgroup label="── 분위기/감성 계열">
+                  <option value="lo-fi hip-hop (dusty jazz samples, mellow drums, vinyl crackle, cozy)">로파이 힙합 — 더스티 재즈, 바이닐 크래클, 아늑함</option>
+                  <option value="cloud rap beats (dreamy synths, reverb-drenched samples, hazy atmosphere)">클라우드 랩 — 드리미 신스, 리버브 가득, 헤이지</option>
+                  <option value="emo rap production (guitar-based, emotional piano, atmospheric pads)">이모 랩 — 기타 베이스, 감성 피아노, 분위기 패드</option>
+                  <option value="dark ambient hip-hop (atmospheric textures, minor key pads, eerie samples)">다크 앰비언트 — 텍스처, 마이너 패드, 불길한 샘플</option>
+                </optgroup>
+                <optgroup label="── 웅장/퓨전 계열">
+                  <option value="orchestral hip-hop (strings, brass, cinematic grand scale production)">오케스트라 힙합 — 현악, 브라스, 시네마틱</option>
+                  <option value="afrobeats hip-hop fusion (afro percussion, melodic synths, bouncy groove)">아프로힙합 — 아프로 타악기, 멜로디 신스</option>
+                  <option value="latin trap (reggaeton-influenced rhythm, 808, spanish guitar elements)">라틴 트랩 — 레게톤 리듬, 808, 스패니쉬 기타</option>
+                  <option value="alternative hip-hop (experimental sounds, unconventional structure, art-focused)">얼터너티브 힙합 — 실험적, 비정형 구조</option>
+                </optgroup>
+              </select>
+            </div>
+          </div>
+          <div class="r3">
+            <div class="field">
+              <label>보컬 구성</label>
+              <select id="sp-vocal-type" onchange="updateSpVocalUI()">
+                <option value="single">단독 보컬 (한 명)</option>
+                <option value="dual">파트별 다른 보컬</option>
+                <option value="call-response">주고받기 (Call & Response)</option>
+                <option value="harmony">하모니 / 합창</option>
+              </select>
+            </div>
+            <!-- 단독 -->
+            <div id="sp-vocal-single" class="field">
+              <label>보컬 스타일</label>
+              <select id="sp-vocal">
+                <option value="">설정 안함</option>
+                <option value="solo female vocal">솔로 여성 보컬</option>
+                <option value="solo male vocal">솔로 남성 보컬</option>
+                <option value="whisper / breathy female vocal">위스퍼 여성</option>
+                <option value="whisper / breathy male vocal">위스퍼 남성</option>
+                <option value="powerful belting female vocal">파워풀 여성</option>
+                <option value="powerful belting male vocal">파워풀 남성</option>
+                <option value="falsetto male vocal">팔세토 남성</option>
+                <option value="rap vocal male">랩 (남)</option>
+                <option value="rap vocal female">랩 (여)</option>
+                <option value="child / youthful vocal">어린/청순한</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>분위기 / 사운드스케이프</label>
+              <select id="sp-sound">
+                <option value="">설정 안함</option>
+                <optgroup label="── 공간감/텍스처">
+                  <option value="dry close-mic, no reverb, raw intimate punchy sound">드라이 — 리버브 없이 날것. 바짝 댄 마이크, 펀치감</option>
+                  <option value="heavy reverb, spacious atmospheric room sound">헤비 리버브 — 공간감 넘치고 웅장하게 울림</option>
+                  <option value="lo-fi warm vinyl crackle, dusty nostalgic texture">로파이 바이닐 — 따뜻하고 먼지 낀 아날로그 질감</option>
+                  <option value="hazy dreamy washed-out atmospheric, cloud-like">헤이지/드리미 — 흐릿하고 몽환적. 클라우드 랩 안개</option>
+                  <option value="crisp clear polished radio-ready mix">크리스프/클리어 — 깨끗하고 세련된 라디오 레디</option>
+                </optgroup>
+                <optgroup label="── 분위기/감정">
+                  <option value="dark and gloomy, minor key, ominous heavy atmosphere">다크/글루미 — 어둡고 불길하고 묵직한 분위기</option>
+                  <option value="bright energetic punchy, club-ready high-energy">브라이트/에너제틱 — 밝고 클럽에서 틀 것 같은</option>
+                  <option value="melancholic emotional, bittersweet mood, minor key warmth">멜랑콜릭 — 쓸쓸하고 감성적. 달콤쌉싸름한</option>
+                  <option value="aggressive hard industrial, dark mechanical energy">어그레시브/인더스트리얼 — 강렬하고 기계적인 에너지</option>
+                  <option value="eerie unsettling, creepy phonk-like atmosphere">이어리/크리피 — 으스스하고 불안한. 펑크 분위기</option>
+                  <option value="uplifting anthemic, triumphant feel-good energy">업리프팅/앤섬 — 고양감 있고 승리하는 느낌</option>
+                </optgroup>
+                <optgroup label="── 프로덕션 스타일">
+                  <option value="trap-style heavy 808 bass dominating the mix">트랩 베이스 — 808이 믹스를 지배하는 진동하는 저음</option>
+                  <option value="rage chaotic distorted overdriven heavy production">레이지/카오틱 — 디스토션 걸린 폭발적이고 혼돈스러운</option>
+                  <option value="cinematic orchestral epic grand scale production">시네마틱/오케스트라 — 영화 OST 같은 웅장함</option>
+                  <option value="smooth R&B-influenced warm polished glossy production">스무스 R&B — 부드럽고 광택 있는 따뜻한 프로덕션</option>
+                  <option value="minimalist sparse production, space and silence emphasized">미니멀리스트 — 여백과 침묵을 강조한 극도로 심플</option>
+                  <option value="vintage golden era hip-hop production aesthetic">빈티지/골든에라 — 90년대 힙합 황금기 프로덕션</option>
+                </optgroup>
+              </select>
+            </div>
+          </div>
+          <!-- 파트별 보컬 -->
+          <div id="sp-vocal-dual" style="display:none">
+            <div class="r2">
+              <div class="field"><label>Verse 보컬</label>
+                <select id="sp-vocal-verse">
+                  <option value="solo female vocal">솔로 여성</option>
+                  <option value="solo male vocal">솔로 남성</option>
+                  <option value="rap vocal male">랩 (남)</option>
+                  <option value="rap vocal female">랩 (여)</option>
+                  <option value="whisper / breathy vocal">위스퍼</option>
+                  <option value="falsetto male vocal">팔세토 남성</option>
+                </select>
+              </div>
+              <div class="field"><label>Chorus 보컬</label>
+                <select id="sp-vocal-chorus">
+                  <option value="powerful belting female vocal">파워풀 여성</option>
+                  <option value="powerful belting male vocal">파워풀 남성</option>
+                  <option value="solo female vocal">솔로 여성</option>
+                  <option value="solo male vocal">솔로 남성</option>
+                  <option value="group choir">그룹/합창</option>
+                  <option value="falsetto male vocal">팔세토 남성</option>
+                </select>
+              </div>
+            </div>
+            <div class="field"><label>Bridge 보컬 (선택)</label>
+              <select id="sp-vocal-bridge">
+                <option value="">Chorus와 동일</option>
+                <option value="solo female vocal">솔로 여성</option>
+                <option value="solo male vocal">솔로 남성</option>
+                <option value="whisper / breathy vocal">위스퍼</option>
+                <option value="powerful belting female vocal">파워풀 여성</option>
+                <option value="group choir">그룹/합창</option>
+              </select>
+            </div>
+          </div>
+          <!-- 주고받기 -->
+          <div id="sp-vocal-call-response" style="display:none">
+            <div class="r2">
+              <div class="field"><label>선창 (Call)</label>
+                <select id="sp-vocal-call">
+                  <option value="solo male vocal">솔로 남성</option>
+                  <option value="solo female vocal">솔로 여성</option>
+                  <option value="rap vocal male">랩 (남)</option>
+                  <option value="rap vocal female">랩 (여)</option>
+                </select>
+              </div>
+              <div class="field"><label>응답 (Response)</label>
+                <select id="sp-vocal-response">
+                  <option value="solo female vocal">솔로 여성</option>
+                  <option value="solo male vocal">솔로 남성</option>
+                  <option value="group choir">그룹/합창</option>
+                  <option value="powerful belting female vocal">파워풀 여성</option>
+                </select>
+              </div>
+            </div>
+            <div class="field"><label>패턴</label>
+              <select id="sp-vocal-pattern">
+                <option value="alternating lines">한 줄씩 번갈아</option>
+                <option value="alternating phrases">구절씩 번갈아</option>
+                <option value="verse solo, chorus together">버스 솔로/코러스 합창</option>
+              </select>
+            </div>
+          </div>
+          <!-- 하모니 -->
+          <div id="sp-vocal-harmony" style="display:none">
+            <div class="r2">
+              <div class="field"><label>메인 보컬</label>
+                <select id="sp-vocal-main">
+                  <option value="solo female vocal">솔로 여성</option>
+                  <option value="solo male vocal">솔로 남성</option>
+                  <option value="powerful belting female vocal">파워풀 여성</option>
+                  <option value="powerful belting male vocal">파워풀 남성</option>
+                </select>
+              </div>
+              <div class="field"><label>하모니 구성</label>
+                <select id="sp-vocal-harmony-type">
+                  <option value="close harmony (3-part)">클로즈 하모니</option>
+                  <option value="gospel choir harmony">가스펠 합창</option>
+                  <option value="unison with backing vocals">유니즌+백킹</option>
+                  <option value="acapella harmony">아카펠라</option>
+                  <option value="layered vocals with echo">레이어드+에코</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <!-- 보컬 톤 -->
+          <div class="field">
+            <label>보컬 톤 <span style="font-size:11px;color:var(--m2)">(다중 선택)</span></label>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:5px" id="sp-vocal-tone-grid"></div>
+          </div>
+        </div>
+
+        <div class="r2">
+          <div class="field">
+            <label>곡 구성</label>
+            <select id="sp-structure">
+              <optgroup label="── 일반 팝/발라드 ──">
+                <option value="[Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Chorus]">일반 (Verse-Chorus-Bridge)</option>
+                <option value="[Verse 1], [Chorus], [Verse 2], [Chorus]">단순 (Verse-Chorus)</option>
+                <option value="[Intro], [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Pre-Chorus], [Chorus], [Bridge], [Outro]">풀 구성</option>
+                <option value="[Verse 1], [Verse 2], [Chorus], [Verse 3], [Outro]">포크/스토리텔링</option>
+              </optgroup>
+              <optgroup label="── 힙합 / 랩 ──">
+                <option value="[Verse 1], [Hook], [Verse 2], [Hook], [Verse 3], [Hook]">벌스-훅 (랩 기본)</option>
+                <option value="[Intro], [Verse 1], [Hook], [Verse 2], [Hook], [Bridge], [Outro]">랩 풀 구성</option>
+                <option value="[Hook], [Verse 1], [Hook], [Verse 2], [Hook], [Verse 3], [Hook]">훅 선행</option>
+                <option value="[Verse 1], [Hook], [Verse 2], [Hook], [Verse 3]">벌스 3절 구성</option>
+                <option value="[Intro (rap)], [Verse 1], [Hook], [Verse 2], [Hook], [Outro (rap)]">랩 인트로/아웃트로</option>
+                <option value="[Verse 1], [Verse 2], [Verse 3], [Verse 4]">풀 랩 (벌스만)</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="field">
+            <label>생성 세트 수</label>
+            <select id="sp-count">
+              <option value="3">3세트</option>
+              <option value="5">5세트</option>
+              <option value="10">10세트</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-p" id="sp-btn" onclick="genSunoPrompt()">♫ Suno 프롬프트 생성</button>
+        <div class="err" id="err-sp"></div>
+        <div class="prog" id="prog-sp"><div class="prog-txt">생성 중...</div><div class="prog-bar"><div class="prog-fill" style="background:var(--a3)"></div></div></div>
+      </div>
+      <div id="sp-results"></div>
+    </div>
+
+    <!-- ── 폰트 변환기 ── -->
+    <div class="page" id="page-fonts">
+      <div class="card">
+        <div class="card-title">YouTube 폰트 변환기</div>
+        <div class="card-sub">유튜브 채널명·제목·댓글에 쓸 특수 글씨체로 변환 — 클릭하면 복사</div>
+        <input id="font-input" type="text" placeholder="변환할 텍스트를 입력하세요..." oninput="renderFonts(this.value)" style="width:100%;padding:12px 14px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx);font-size:15px;outline:none;margin-bottom:1.25rem" autocomplete="off">
+        <div id="font-empty" style="text-align:center;padding:2rem;color:var(--m1);font-size:13px">위 입력창에 텍스트를 입력하면<br>30가지 이상의 폰트 스타일이 나타납니다</div>
+        <div id="font-output" style="display:none">
+          <div class="sec-lbl">수학 / 스크립트</div>
+          <div class="font-grid" id="fg-math"></div>
+          <div class="sec-lbl">버블 / 박스</div>
+          <div class="font-grid" id="fg-bubble"></div>
+          <div class="sec-lbl">효과 / 데코</div>
+          <div class="font-grid" id="fg-deco"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── 채널 분석 ── -->
+    <div class="page" id="page-channel">
+      <div class="card">
+        <div class="card-title">채널 분석 & 피드백</div>
+        <div class="card-sub">내 채널과 유사 채널을 비교 분석하여 운영 방향 피드백을 받습니다</div>
+        <div class="field">
+          <label>내 채널 <span style="font-size:11px;color:var(--m2)">(URL 또는 채널ID 또는 @핸들)</span></label>
+          <input id="ch-my" type="text" placeholder="예: @얼렁뚱땡쓰 또는 UCxxxxxxxx">
+        </div>
+        <div class="field">
+          <label>유사/비교 채널 <span style="font-size:11px;color:var(--m2)">(줄바꿈으로 구분, 선택사항)</span></label>
+          <textarea id="ch-similar" rows="3" placeholder="https://youtube.com/@채널1&#10;https://youtube.com/@채널2"></textarea>
+        </div>
+        <div class="r2">
+          <div class="field">
+            <label>자동 서칭 키워드</label>
+            <input id="ch-keywords" type="text" placeholder="예: K-pop 힙합 라이프스타일 뮤직">
+          </div>
+          <div class="field" style="display:flex;align-items:flex-end;padding-bottom:4px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="ch-auto-search" checked> 유사 채널 자동 서칭
+            </label>
+          </div>
+        </div>
+        <button class="btn btn-p" id="ch-analyze-btn" onclick="analyzeChannel()">📊 분석 시작</button>
+        <div class="err" id="err-channel"></div>
+        <div class="prog" id="prog-channel" style="display:none">
+          <div class="prog-txt">채널 데이터 수집 중... (30초~1분 소요)</div>
+          <div class="prog-bar"><div class="prog-fill" style="background:var(--a1)"></div></div>
+        </div>
+      </div>
+      <div id="ch-my-card" class="card" style="display:none">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--a1);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.875rem">내 채널 현황</div>
+        <div id="ch-my-info"></div>
+      </div>
+      <div id="ch-similar-card" class="card" style="display:none">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--a2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.875rem">유사 채널 비교</div>
+        <div id="ch-similar-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px"></div>
+      </div>
+      <div id="ch-feedback-card" class="card" style="display:none">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--a3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.875rem">📝 채널 운영 피드백</div>
+        <div id="ch-feedback" class="lyrics-txt" style="white-space:pre-wrap;line-height:1.9;font-size:13px"></div>
+      </div>
+    </div>
+
+    <!-- ── 자막 싱크 생성기 ── -->
+    <div class="page" id="page-subsync">
+      <div class="card">
+        <div class="card-title">자막 싱크 생성기</div>
+        <div class="card-sub">YouTube Studio에서 다운로드한 영어 자막 파일을 올리면 타임스탬프를 추출해 다른 언어 자막을 자동 생성합니다</div>
+
+        <div style="background:var(--s2);border:1px solid var(--b1);border-radius:7px;padding:.875rem;margin-bottom:1rem;font-size:12px;color:var(--m2);line-height:1.8">
+          <strong style="color:var(--tx)">사용 방법</strong><br>
+          1. YouTube Studio → 자막 → 영어 자막 편집 완료 후 <strong style="color:var(--a1)">다운로드 (.srt)</strong><br>
+          2. 아래에 영어 .srt 파일 업로드<br>
+          3. 번역된 가사 붙여넣기 (언어별로 줄 수가 자막과 일치해야 함)<br>
+          4. 생성된 각 언어 .srt 파일 다운로드 → YouTube Studio에 업로드
+        </div>
+
+        <!-- 불러오기 버튼 -->
+        <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap">
+          <button class="btn btn-g btn-sm" onclick="loadFromLyricsStore()">♪ 가사 생성기에서 불러오기</button>
+          <button class="btn btn-g btn-sm" onclick="loadFromTrStore()">⟷ 가사 번역에서 불러오기</button>
+          <span id="subsync-loaded-hint" style="font-size:11px;color:var(--a3);align-self:center"></span>
+        </div>
+
+        <!-- SRT 업로드 -->
+        <div class="card" style="border-color:rgba(124,111,255,.25)">
+          <div style="font-size:12px;font-weight:500;margin-bottom:.75rem;color:var(--a1)">① 영어 자막 파일 업로드 (.srt / .sbv)</div>
+          <div id="srt-drop" style="border:1.5px dashed var(--b2);border-radius:7px;padding:1.5rem;text-align:center;cursor:pointer;transition:border-color .15s"
+            onclick="document.getElementById('srt-input').click()"
+            ondragover="event.preventDefault();this.style.borderColor='var(--a1)'"
+            ondragleave="this.style.borderColor='var(--b2)'"
+            ondrop="srtDrop(event)">
+            <div style="font-size:20px;margin-bottom:6px">⏱</div>
+            <div style="font-size:13px;font-weight:500;margin-bottom:3px">SRT / SBV 파일 드래그 또는 클릭</div>
+            <div style="font-size:11px;color:var(--m2)">YouTube Studio에서 다운로드한 자막 파일</div>
+          </div>
+          <input type="file" id="srt-input" accept=".srt,.sbv,.vtt" style="display:none" onchange="loadSrt(this)">
+          <div id="srt-info" style="display:none;margin-top:.75rem;padding:8px 11px;background:var(--s2);border-radius:6px;font-size:12px">
+            <span id="srt-filename" style="color:var(--a1);font-weight:500"></span>
+            <span id="srt-count" style="color:var(--m2);margin-left:8px"></span>
+          </div>
+        </div>
+
+        <!-- 번역 가사 입력 -->
+        <div class="card" id="srt-langs-card" style="display:none">
+          <div style="font-size:12px;font-weight:500;margin-bottom:.75rem;color:var(--a1)">② 번역된 가사 입력</div>
+          <div style="font-size:11px;color:var(--m2);margin-bottom:.875rem;line-height:1.6">
+            각 언어의 가사를 입력하세요. 자막 수: <strong style="color:var(--a1)"><span id="srt-line-count">0</span>개</strong><br>
+            <span style="color:var(--a3)">줄 수가 달라도 괜찮아요</span> — AI가 자막 슬롯에 맞게 자동으로 재배분합니다.
+          </div>
+          <div id="srt-lang-inputs"></div>
+        </div>
+
+        <!-- 생성 버튼 -->
+        <div id="srt-generate-wrap" style="display:none">
+          <button class="btn btn-p" onclick="generateSrt()">⬇ 자막 파일 생성 및 다운로드</button>
+          <div class="err" id="err-srt"></div>
+        </div>
+
+        <!-- 결과 -->
+        <div id="srt-results" style="display:none;margin-top:1rem">
+          <div style="font-size:12px;font-weight:500;margin-bottom:.75rem;color:var(--a3)">③ 생성된 자막 파일</div>
+          <div id="srt-download-list" style="display:flex;flex-direction:column;gap:5px"></div>
+        </div>
+      </div>
+    </div>
+
+        <!-- ── 아이콘 모음 ── -->
+    <div class="page" id="page-icons">
+      <div class="card">
+        <div class="card-title">YouTube 아이콘 모음</div>
+        <div class="card-sub">클릭하면 바로 복사 — 제목·설명·댓글 어디서든 사용 가능</div>
+        <input type="text" id="icon-search" placeholder="아이콘 검색... (예: 음악, 별, 화살표)" oninput="filterIcons(this.value)"
+          style="width:100%;padding:9px 11px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx);font-size:13px;outline:none;margin-bottom:1rem">
+        <div id="icon-cats"></div>
+      </div>
+    </div>
+
+
+  </div>
+</div>
+
+<!-- 설정 모달 -->
+<div class="modal-bg" id="settings-modal">
+  <div class="modal">
+    <div class="modal-title">API 키 설정</div>
+    <div class="field">
+      <label>Anthropic API Key (Claude)</label>
+      <input id="api-key-input" type="password" placeholder="sk-ant-...">
+      <div style="font-size:11px;color:var(--m2);margin-top:4px">console.anthropic.com 에서 발급</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:.5rem">
+      <button class="btn btn-p btn-sm" onclick="saveKey()">저장</button>
+      <button class="btn btn-g btn-sm" onclick="closeSettings()">닫기</button>
+    </div>
+    <div class="err" id="err-key"></div>
+  </div>
+</div>
+
+<script>
+// ── 전역 ─────────────────────────────────────────────────────
+let trackData = [], dragSrcIdx = null, scenesData = [];
+const LANGS = [
+  {code:'ko',name:'한국어',flag:'🇰🇷'},
+  {code:'en',name:'English',flag:'🇺🇸'},
+  {code:'ja',name:'日本語',flag:'🇯🇵'},
+  {code:'zh',name:'中文(繁體)',flag:'🇹🇼'},
+  {code:'pt',name:'Português',flag:'🇧🇷'},
+  {code:'es',name:'Español',flag:'🇪🇸'},
+  {code:'vi',name:'Tiếng Việt',flag:'🇻🇳'},
+  {code:'de',name:'Deutsch',flag:'🇩🇪'},
+  {code:'it',name:'Italiano',flag:'🇮🇹'},
+  {code:'nl',name:'Nederlands',flag:'🇳🇱'},
+  {code:'sv',name:'Svenska',flag:'🇸🇪'},
+];
+let selLangs = new Set(['ko','en']);
+let trSelLangs = new Set(['en']);
+
+const PAGE_TITLES = {lyrics:'가사 생성기',translate:'가사 번역',ytmp3:'YT → MP3',ytopt:'YouTube 업로드 최적화',channel:'채널 분석 & 피드백',subsync:'자막 싱크 생성기',scenes:'장면 프롬프트','suno-prompt':'Suno 프롬프트 생성기',fonts:'폰트 변환기',icons:'YouTube 아이콘 모음'};
+
+// ── 초기화 ────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  initLangGrid();
+  initTrLangGrid();
+  initChips();
+  checkKeyStatus();
+  initMp3Drop();
+  checkLastOpts();
+  initVocalTones();
+  checkYtApiKey();
+  initSpChips();
+  initSpThemeDropdown();
+  initSpVocalTones();
+});
+
+function checkKeyStatus() {
+  fetch('/api/settings').then(r=>r.json()).then(d=>{
+    const el = document.getElementById('key-status');
+    if (d.has_key) { el.textContent='API 키 설정됨 ✓'; el.className='sb-key-status ok'; }
+    else { el.textContent='API 키 설정 필요'; el.className='sb-key-status no'; }
+  });
+}
+
+// ── 네비게이션 ────────────────────────────────────────────────
+function nav(el) {
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+  const page = el.dataset.page;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.getElementById('tb-title').textContent = PAGE_TITLES[page]||'';
+  if (page === 'styles-lib') loadStylesData();
+  if (page === 'history') loadHistory();
+  if (page === 'icons') initIcons();
+}
+
+// ── 설정 ──────────────────────────────────────────────────────
+function openSettings() { document.getElementById('settings-modal').classList.add('open'); }
+function closeSettings() { document.getElementById('settings-modal').classList.remove('open'); }
+async function saveKey() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key) { showErr('err-key','키를 입력해주세요'); return; }
+  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({anthropic_key:key})});
+  localStorage.setItem('ak', key);
+  closeSettings();
+  checkKeyStatus();
+}
+window.addEventListener('load',()=>{ const k=localStorage.getItem('ak'); if(k) document.getElementById('api-key-input').value=k; });
+
+// ── 언어 그리드 ───────────────────────────────────────────────
+function initLangGrid() {
+  const g = document.getElementById('lang-grid');
+  g.innerHTML = ''; // 중복 방지
+  LANGS.forEach(l => {
+    const div = document.createElement('div');
+    div.className = 'lang-item' + (selLangs.has(l.code) ? ' sel' : '');
+    div.innerHTML = `${l.flag} ${l.name}`;
+    div.onclick = () => {
+      if (selLangs.has(l.code)) { if(selLangs.size>1) { selLangs.delete(l.code); div.classList.remove('sel'); } }
+      else { selLangs.add(l.code); div.classList.add('sel'); }
+    };
+    g.appendChild(div);
+  });
+}
+
+function initTrLangGrid() {
+  const g = document.getElementById('tr-lang-grid');
+  g.innerHTML = ''; // 중복 방지
+  LANGS.forEach(l => {
+    const div = document.createElement('div');
+    div.className = 'lang-item' + (trSelLangs.has(l.code) ? ' sel' : '');
+    div.innerHTML = `${l.flag} ${l.name}`;
+    div.onclick = () => {
+      if (trSelLangs.has(l.code)) {
+        if (trSelLangs.size > 1) { trSelLangs.delete(l.code); div.classList.remove('sel'); }
+      } else {
+        trSelLangs.add(l.code); div.classList.add('sel');
+      }
+    };
+    g.appendChild(div);
+  });
+}
+
+// ── 칩 ───────────────────────────────────────────────────────
+const CHIP_DATA = {
+  genre: [
+    // 힙합 서브장르
+    'boom bap','trap','drill','UK drill','phonk','cloud rap',
+    'rage rap','conscious rap','gangsta rap','old school hip hop',
+    'east coast hip hop','west coast hip hop','southern hip hop',
+    'mumble rap','emo rap','melodic rap','chopper','lo-fi hip hop',
+    'jazz rap','soul rap','abstract hip hop','alternative hip hop',
+    'crunk','jersey club','hyper pop',
+    // 인접 장르
+    'R&B','neo soul','soul','funk','afrobeats','afro trap','grime',
+    'reggaeton','pop rap','K-hip hop',
+    // 기타
+    'EDM','synthwave','city pop','indie folk','acoustic','ballad',
+  ],
+  mood: [
+    // 어둠/강렬함
+    'dark','aggressive','menacing','cold','ominous','gritty','raw',
+    'intense','desperate','chaotic','ruthless',
+    // 감성/감정
+    'melancholic','emotional','sad','lonely','heartbroken','nostalgic',
+    'bittersweet','vulnerable','reflective','somber',
+    // 에너지/활기
+    'energetic','hype','explosive','triumphant','confident','powerful',
+    'uplifting','anthemic','motivational','defiant',
+    // 분위기
+    'dreamy','hazy','mysterious','atmospheric','hypnotic','ethereal',
+    'chill','laid-back','peaceful','warm','smooth',
+    // 감각
+    'romantic','passionate','moody','tense','hopeful','sweet',
+  ],
+};
+
+
+const CHIP_KO = {
+  // 장르
+  'boom bap':'붐뱁 — 90년대 클래식 힙합',
+  'trap':'트랩 — 하이햇·베이스 중심 힙합',
+  'drill':'드릴 — 어둡고 공격적인 힙합',
+  'lo-fi hip hop':'로파이 힙합 — 차분하고 빈티지한',
+  'phonk':'펑크 — 다크하고 드리프트감 있는',
+  'cloud rap':'클라우드 랩 — 몽환적·대기감 있는 랩',
+  'rage rap':'레이지 랩 — 공격적·광란적 에너지',
+  'conscious rap':'컨셔스 랩 — 메시지·사회비판 중심',
+  'gangsta rap':'갱스터 랩 — 거리 이야기',
+  'old school hip hop':'올드스쿨 힙합 — 80-90년대 클래식',
+  'east coast hip hop':'이스트코스트 — NY 스타일',
+  'west coast hip hop':'웨스트코스트 — LA 스타일',
+  'mumble rap':'멈블 랩 — 발음 흐리고 감각적인',
+  'emo rap':'이모 랩 — 감정적·우울한 랩',
+  'melodic rap':'멜로딕 랩 — 노래하듯 랩',
+  'afrobeats':'아프로비츠 — 아프리카 리듬 팝',
+  'afro trap':'아프로 트랩 — 아프리카+트랩 융합',
+  'grime':'그라임 — 영국식 어둡고 빠른 랩',
+  'R&B':'알앤비 — 소울풀한 리듬 앤 블루스',
+  'neo soul':'네오소울 — 현대적 소울',
+  'soul':'소울 — 감성 깊은 흑인 음악',
+  'funk':'펑크 — 그루비하고 리드미컬한',
+  'jazz rap':'재즈 랩 — 재즈+힙합 퓨전',
+  'pop rap':'팝 랩 — 대중적인 힙합',
+  'K-pop':'케이팝 — 한국 아이돌 팝',
+  'city pop':'시티팝 — 80년대 일본 어반 팝',
+  'synthwave':'신스웨이브 — 80년대 레트로 전자음',
+  'EDM':'EDM — 클럽·페스티벌 전자음악',
+  'drum & bass':'드럼앤베이스 — 빠른 드럼+베이스',
+  'ambient':'앰비언트 — 분위기·배경음악',
+  'indie folk':'인디 포크 — 감성적 어쿠스틱',
+  'acoustic':'어쿠스틱 — 생악기 중심',
+  'ballad':'발라드 — 감성적 느린 곡',
+  'cinematic pop':'시네마틱 팝 — 영화적 웅장한 팝',
+  'alternative':'얼터너티브 — 실험적·비주류 록/팝',
+  // 분위기
+  'dark':'다크 — 어둡고 무거운',
+  'aggressive':'어그레시브 — 공격적이고 강렬한',
+  'melancholic':'멜랑꼴리 — 깊은 슬픔·우수',
+  'dreamy':'드리미 — 몽환적·꿈같은',
+  'energetic':'에너제틱 — 활기차고 힘찬',
+  'romantic':'로맨틱 — 사랑스럽고 달콤한',
+  'lonely':'로운리 — 외롭고 쓸쓸한',
+  'peaceful':'피스풀 — 평화롭고 차분한',
+  'nostalgic':'노스탤직 — 그리움·향수',
+  'intense':'인텐스 — 강렬하고 긴장감 있는',
+  'sweet':'스위트 — 달콤하고 사랑스러운',
+  'mysterious':'미스터리어스 — 신비롭고 불가사의한',
+  'cold':'콜드 — 차갑고 냉정한',
+  'warm':'웜 — 따뜻하고 포근한',
+  'hazy':'헤이지 — 흐릿하고 나른한',
+  'tense':'텐스 — 긴장감·불안감',
+  'hopeful':'호프풀 — 희망차고 밝은',
+  'emotional':'이모셔널 — 감정이 풍부한',
+  'passionate':'패셔네이트 — 열정적이고 뜨거운',
+  'calm':'캄 — 고요하고 잔잔한',
+  'explosive':'익스플로시브 — 폭발적인',
+  'bittersweet':'비터스위트 — 달콤쌉쌀한',
+  'free-spirited':'프리스피릿 — 자유롭고 거침없는',
+  'hypnotic':'하입노틱 — 최면적·중독적인',
+  'raw':'로우 — 날것의·가공되지 않은',
+  'triumphant':'트라이엄펀트 — 승리감·웅장함',
+  'sad':'새드 — 슬프고 애잔한',
+  'chill':'칠 — 여유롭고 편안한',
+  'moody':'무디 — 감성적·변덕스러운',
+  'uplifting':'업리프팅 — 기분 좋고 희망찬',
+  // 장르 신규
+  'UK drill':'UK 드릴 — 영국식 어둡고 스타카토',
+  'southern hip hop':'서던 힙합 — 미국 남부 스타일',
+  'chopper':'차퍼 — 극도로 빠른 테크니컬 랩',
+  'soul rap':'소울 랩 — 소울 감성의 힙합',
+  'abstract hip hop':'추상 힙합 — 실험적 비정형',
+  'alternative hip hop':'얼터 힙합 — 비주류 독립적',
+  'crunk':'크렁크 — 남부 파티 힙합',
+  'jersey club':'저지 클럽 — 저지 클럽 비트',
+  'hyper pop':'하이퍼팝 — 극과 극의 팝+일렉',
+  'reggaeton':'레게톤 — 라틴 리듬 팝',
+  'K-hip hop':'K-힙합 — 한국 힙합',
+  // 분위기 신규
+  'menacing':'위협적인 — 불길하고 위협적',
+  'ominous':'음울한 — 불길한 전조',
+  'gritty':'그리티 — 거칠고 투박한',
+  'desperate':'절박한 — 간절하고 절실한',
+  'chaotic':'카오틱 — 혼란스럽고 예측불허',
+  'ruthless':'루스리스 — 무자비하고 냉혹한',
+  'heartbroken':'상심한 — 마음이 깨진',
+  'vulnerable':'취약한 — 솔직하게 드러낸',
+  'reflective':'성찰적 — 돌아보는',
+  'somber':'음침한 — 우울하고 진중한',
+  'hype':'하이프 — 들썩이는 흥분감',
+  'confident':'자신감 — 확신에 찬',
+  'powerful':'파워풀 — 강렬하고 힘찬',
+  'anthemic':'앤섬 — 함께 외치는 웅장함',
+  'motivational':'동기부여 — 할 수 있다는 에너지',
+  'defiant':'반항적 — 굽히지 않는',
+  'atmospheric':'분위기감 — 공간감 있는',
+  'ethereal':'에테리얼 — 공기처럼 가볍고 초월적',
+  'laid-back':'레이드백 — 여유롭고 느긋한',
+  'smooth':'스무스 — 부드럽고 걸림없는',
+  'triumphant':'트라이엄펀트 — 승리감 넘치는',
+};
+
+const THEME_DATA = [
+  {cat:'자신감 / 플렉스 / 성공', items:[
+    {label:'언더독 라이즈', desc:'아무도 믿지 않던 시절, 혼자 갈고닦아 증명하는 과정 — 무시당한 기억이 연료'},
+    {label:'보스 플렉스', desc:'이미 정상에 있는 자의 여유 — 굳이 설명 안 해도 보이는 것들'},
+    {label:'차가운 자존심', desc:'감정 드러내지 않고 결과로만 말하는 스타일 — 조용한 승자'},
+    {label:'돈과 성공의 대가', desc:'원하던 걸 얻었지만 치른 대가를 아는 사람 — 화려함 뒤의 무게'},
+    {label:'배신자들에게', desc:'떠난 사람들, 무시했던 사람들이 돌아오려 할 때 — 냉정한 시선'},
+    {label:'혼자 만든 길', desc:'도움 없이 맨손으로 올라온 사람의 이야기 — 외로운 성취'},
+  ]},
+  {cat:'거리 / 현실 / 생존', items:[
+    {label:'밑바닥 생활', desc:'돈 없고 미래 없던 시절 — 구체적인 장면들: 라면, 쪽방, 빈 통장'},
+    {label:'동네 이야기', desc:'자란 곳의 냄새와 기억 — 골목, 친구들, 그때 그 장소'},
+    {label:'생존 본능', desc:'살기 위해 선택해야 했던 것들 — 도덕 판단 없이 현실 묘사'},
+    {label:'거리의 규칙', desc:'말 안 해도 아는 것들 — 누구를 믿고 누구를 조심해야 하는지'},
+    {label:'야망과 현실의 충돌', desc:'꿈은 크지만 지금 당장 현실이 발목 잡는 상황'},
+    {label:'탈출 욕구', desc:'지금 있는 곳을 벗어나고 싶은 욕망 — 방법을 모르는 답답함'},
+  ]},
+  {cat:'인간관계 / 배신 / 고독', items:[
+    {label:'가짜 친구', desc:'잘 될 때만 옆에 있다가 힘들 때 사라진 사람들 — 냉정한 관찰'},
+    {label:'진짜 하나', desc:'수백 명 아는 사람보다 진짜 한 명의 가치 — 의리와 신뢰'},
+    {label:'가족의 무게', desc:'힘들게 해도 버릴 수 없는 관계 — 원망과 사랑이 공존'},
+    {label:'홀로 서기', desc:'의지할 사람 없이 혼자 결정해야 할 때의 고독'},
+    {label:'파국 직전', desc:'관계가 망가지기 직전 — 둘 다 알지만 말 못하는 상황'},
+    {label:'끊어낸 관계', desc:'더 이상 연락하지 않기로 한 사람 — 이유 없이 설명 안 함'},
+  ]},
+  {cat:'사랑 / 욕망 / 상실', items:[
+    {label:'집착과 해방 사이', desc:'잊어야 하는데 못 잊는 상황 — 의지와 감정의 전쟁'},
+    {label:'독한 이별', desc:'예쁘게 끝나지 않은 관계 — 감정 찌꺼기가 남아있는 상태'},
+    {label:'밤의 감정', desc:'낮엔 괜찮은데 밤이 되면 올라오는 것들'},
+    {label:'욕망에 솔직하기', desc:'원하는 걸 원한다고 말하는 것 — 정제 없이 직접적으로'},
+    {label:'먼저 떠난 사람', desc:'기다리다 지쳐서 먼저 돌아선 쪽의 이야기'},
+    {label:'감정 없는 관계', desc:'이미 식었지만 편의상 유지되는 관계 — 공허함'},
+  ]},
+  {cat:'정체성 / 내면 / 철학', items:[
+    {label:'진짜 나', desc:'남들이 보는 나와 실제 나의 괴리 — 어느 쪽이 진짜인지'},
+    {label:'이중성', desc:'상황에 따라 달라지는 자신 — 위선 아니라 적응'},
+    {label:'존재 이유', desc:'왜 이걸 하는지 스스로에게 묻는 순간 — 흔들리는 확신'},
+    {label:'분노의 출처', desc:'화가 나는데 정확히 무엇 때문인지 — 원인을 파헤치는 랩'},
+    {label:'자기 파괴', desc:'스스로를 갉아먹는 생각들 — 중독, 자책, 자멸 충동'},
+    {label:'평정심', desc:'감정을 컨트롤하는 법을 익힌 사람 — 쿨한 관조적 시선'},
+  ]},
+  {cat:'사회 / 시스템 / 저항', items:[
+    {label:'시스템 비판', desc:'기회가 공평하지 않다는 걸 아는 사람의 시선 — 분노보다 냉소'},
+    {label:'미디어와 이미지', desc:'보여지는 것과 실제 사이 — SNS, 가상 이미지, 소비'},
+    {label:'돈이 전부인 세상', desc:'모든 게 돈으로 환산되는 현실 — 거부감과 적응 사이'},
+    {label:'세대 갈등', desc:'위 세대가 만들어놓은 판을 물려받은 세대의 감각'},
+    {label:'인정 욕구', desc:'인정받고 싶어서 하는 행동들 — 솔직한 고백'},
+    {label:'침묵 강요', desc:'말하면 안 된다는 압력 — 그럼에도 말하는 이유'},
+  ]},
+  {cat:'목표 / 드라이브 / 집념', items:[
+    {label:'지금 이 순간', desc:'과거도 미래도 아닌 지금 여기에 집중하는 사람'},
+    {label:'증명의 욕구', desc:'스스로한테 증명하고 싶은 것 — 남이 아닌 자신을 위해'},
+    {label:'루틴과 희생', desc:'아무도 안 볼 때도 하는 것들 — 고독한 과정의 아름다움'},
+    {label:'기회를 잡는 순간', desc:'딱 한 번 온 기회 앞에서 — 준비된 사람과 그렇지 않은 사람'},
+    {label:'멈출 수 없는 이유', desc:'그만두고 싶어도 그만둘 수 없는 이유 — 의무감이 아닌 집착'},
+    {label:'유산', desc:'내가 사라진 뒤 남겨지는 것 — 음악, 이름, 영향'},
+  ]},
+];
+
+function toggleChipVal(inp, w, btn) {
+  const isSel = btn.classList.contains('sel');
+  if (isSel) {
+    // 제거
+    let vals = inp.value.split(',').map(v=>v.trim()).filter(v=>v && v!==w);
+    inp.value = vals.join(', ');
+    btn.classList.remove('sel');
+  } else {
+    // 추가
+    const cur = inp.value.trim();
+    inp.value = cur ? cur + ', ' + w : w;
+    btn.classList.add('sel');
+  }
+}
+
+function makeChipBtn(w, onClickFn) {
+  const wrap = document.createElement('span');
+  wrap.className = 'chip-wrap';
+  const btn = document.createElement('button');
+  btn.className = 'chip chip-p';
+  btn.textContent = w;
+  btn.dataset.val = w;
+  btn.onclick = onClickFn;
+  wrap.appendChild(btn);
+  if (CHIP_KO[w]) {
+    const tip = document.createElement('span');
+    tip.className = 'chip-tip';
+    tip.textContent = CHIP_KO[w];
+    wrap.appendChild(tip);
+  }
+  return {wrap, btn};
+}
+
+function initChips() {
+  ['genre','mood'].forEach(k => {
+    const c = document.getElementById('chips-'+k);
+    CHIP_DATA[k].forEach(w => {
+      const inp = document.getElementById('l-'+k);
+      const {wrap, btn} = makeChipBtn(w, () => toggleChipVal(inp, w, btn));
+      c.appendChild(wrap);
+    });
+  });
+  initThemeDropdown();
+}
+
+function initThemeDropdown() {
+  const panel = document.getElementById('theme-dd-panel');
+  THEME_DATA.forEach(cat => {
+    const catDiv = document.createElement('div');
+    catDiv.className = 'theme-cat';
+    catDiv.textContent = cat.cat;
+    panel.appendChild(catDiv);
+    cat.items.forEach(item => {
+      const opt = document.createElement('div');
+      opt.className = 'theme-opt';
+      opt.innerHTML = `<strong>${item.label}</strong><span>${item.desc}</span>`;
+      opt.onclick = () => {
+        document.getElementById('l-theme').value = item.label + ' — ' + item.desc;
+        document.getElementById('theme-dd-label').textContent = item.label;
+        document.getElementById('theme-dd-btn').classList.add('open');
+        closeThemeDD();
+      };
+      panel.appendChild(opt);
+    });
+  });
+  document.addEventListener('click', e => {
+    if (!document.getElementById('theme-dd').contains(e.target)) closeThemeDD();
+  });
+}
+
+function toggleThemeDD() {
+  const btn = document.getElementById('theme-dd-btn');
+  const panel = document.getElementById('theme-dd-panel');
+  btn.classList.toggle('open');
+  panel.classList.toggle('open');
+}
+
+function closeThemeDD() {
+  document.getElementById('theme-dd-btn').classList.remove('open');
+  document.getElementById('theme-dd-panel').classList.remove('open');
+}
+
+// ── 가사 생성 ─────────────────────────────────────────────────
+const LANG_COLORS = {ko:'#ff6fa0',en:'#7c6fff',ja:'#c46fff',zh:'#ff6f6f',pt:'#6fffb8',es:'#ffca6f',vi:'#ff8c6f',de:'#6fb8ff',it:'#6fc4ff',nl:'#ffb86f',sv:'#a8ff6f'};
+
+function updateVocalUI() {
+  const t = document.getElementById('l-vocal-type').value;
+  document.getElementById('vocal-single').style.display = t==='single' ? 'block' : 'none';
+  document.getElementById('vocal-dual').style.display = t==='dual' ? 'block' : 'none';
+  document.getElementById('vocal-call-response').style.display = t==='call-response' ? 'block' : 'none';
+  document.getElementById('vocal-harmony').style.display = t==='harmony' ? 'block' : 'none';
+}
+
+function initVocalTones() {
+  const tones = [
+    // ── 저음/중음 계열
+    {val:'deep / bass-heavy',           label:'딥/베이스',         tip:'굵고 낮은 중저음. 묵직한 존재감'},
+    {val:'warm baritone',               label:'웜 배리톤',          tip:'따뜻하고 풍부한 중저음. 편안하고 안정적'},
+    {val:'chest voice / resonant',      label:'흉성/울림',          tip:'가슴에서 울려 나오는 풍부한 공명'},
+    {val:'gravelly / gritty',           label:'그래블리/거친',      tip:'자갈 굴리는 듯 거칠고 투박한 질감'},
+    {val:'raspy / husky',               label:'레이피/허스키',      tip:'목에 걸리는 쉰 목소리. 날것의 감성'},
+    // ── 공격적/강렬 계열
+    {val:'aggressive / hard-hitting',   label:'어그레시브/강렬',    tip:'강하고 공격적인 딜리버리. 폭발적 에너지'},
+    {val:'dark / menacing',             label:'다크/위협적',        tip:'어둡고 무겁고 위협적. 불길한 색깔'},
+    {val:'intense / desperate',         label:'인텐스/절박한',      tip:'감정이 극도로 실린 절박하고 진지한 톤'},
+    {val:'commanding / dominant',       label:'커맨딩/지배적',      tip:'카리스마 있고 지배적. 강한 존재감'},
+    {val:'cold / detached',             label:'콜드/냉담한',        tip:'감정 없이 차갑고 거리를 두는 톤'},
+    // ── 부드러움/감성 계열
+    {val:'smooth / velvety',            label:'스무스/벨벳',        tip:'부드럽고 매끈한 목소리. 걸리는 부분 없음'},
+    {val:'melodic / singing-inflected', label:'멜로딕/노래투',      tip:'랩이지만 음정 기복이 있어 노래처럼 들림'},
+    {val:'emotional / vulnerable',      label:'이모셔널/감성적',    tip:'솔직하게 감정을 드러내는 취약한 톤'},
+    {val:'soulful / R&B-influenced',    label:'소울풀/R&B',         tip:'소울과 R&B 감성이 배어있는 따뜻한 딜리버리'},
+    {val:'whispery / intimate',         label:'위스퍼리/친밀한',    tip:'속삭이듯 조용하고 청자에게 가까이 다가오는 느낌'},
+    // ── 개성/스타일 계열
+    {val:'nasal / NY-style',            label:'비음/NY스타일',      tip:'코맹맹이 비음. 뉴욕 붐뱁 래퍼 특유의 톤'},
+    {val:'airy / breathless',           label:'에어리/숨차는',      tip:'숨이 섞인 공기감. 클라우드랩 특유의 몽환적 톤'},
+    {val:'high-pitched / piercing',     label:'하이피치/날카로운',  tip:'높고 날카로운 음역. 강렬한 인상'},
+    {val:'monotone / deadpan',          label:'모노톤/데드팬',      tip:'감정 기복 없이 일정. 차갑고 건조한 힘'},
+    {val:'laid-back / slurred',         label:'레이드백/흘리는',    tip:'단어를 흘리듯 발음. 여유롭고 쿨한 느낌'},
+    {val:'energetic / hype',            label:'에너제틱/하이프',    tip:'활기차고 흥분된 느낌. 관중을 달구는 에너지'},
+    {val:'southern drawl',              label:'서던 드로울',         tip:'미국 남부 특유의 늘어지는 발음. 트랩/멤피스 스타일'},
+    {val:'british / UK-accent',         label:'UK 스타일',          tip:'영국 억양 기반. UK 드릴/그라임 특유의 딜리버리'},
+    // ── 이펙트/프로세싱 계열
+    {val:'auto-tune heavy',             label:'오토튠 헤비',        tip:'오토튠 강하게 적용. 음정이 기계적으로 보정됨'},
+    {val:'auto-tune subtle / light',    label:'오토튠 라이트',      tip:'살짝만 오토튠. 자연스럽게 피치를 다듬은 느낌'},
+    {val:'vocoder / robotic',           label:'보코더/로보틱',      tip:'보코더 효과로 기계적이고 SF스러운 사운드'},
+    {val:'distorted / overdriven',      label:'디스토션/왜곡',      tip:'목소리에 디스토션 이펙트. 카오틱하고 실험적'},
+    {val:'pitched down / chopped',      label:'피치다운/찹드',      tip:'피치를 낮추거나 찹드 효과. 펑크/멤피스 스타일'},
+    {val:'reverb-drenched / washed',    label:'리버브 헤비',        tip:'리버브가 가득한 몽환적이고 공간감 넘치는 톤'},
+    {val:'double-tracked / layered',    label:'더블트랙/레이어드',  tip:'같은 보컬을 겹쳐 두텁고 입체적인 사운드'},
+  ];
+  const grid = document.getElementById('vocal-tone-grid');
+  if (!grid) return;
+  tones.forEach(t => {
+    const btn = document.createElement('button');
+    const wrap = document.createElement('span');
+    wrap.className = 'chip-wrap';
+    btn.className = 'chip chip-p';
+    btn.style.cssText = 'text-align:left;justify-content:flex-start;font-size:11px;padding:5px 9px';
+    btn.dataset.val = t.val;
+    btn.textContent = t.label;
+    btn.onclick = () => btn.classList.toggle('sel');
+    wrap.appendChild(btn);
+    if (t.tip) {
+      const tip = document.createElement('span');
+      tip.className = 'chip-tip';
+      tip.textContent = t.tip;
+      wrap.appendChild(tip);
+    }
+    grid.appendChild(wrap);
+  });
+}
+
+function getVocalTones() {
+  const sels = document.querySelectorAll('#vocal-tone-grid .chip.sel');
+  return Array.from(sels).map(b => b.dataset.val).join(', ');
+}
+
+function setVocalTones(toneStr) {
+  if (!toneStr) return;
+  const vals = toneStr.split(',').map(s => s.trim());
+  document.querySelectorAll('#vocal-tone-grid .chip').forEach(b => {
+    b.classList.toggle('sel', vals.includes(b.dataset.val));
+  });
+}
+
+function getVocalOption() {
+  const t = document.getElementById('l-vocal-type').value;
+  const tones = getVocalTones();
+  const toneStr = tones ? `, ${tones} tone` : '';
+  if (t === 'single') {
+    return document.getElementById('l-vocal').value + toneStr;
+  } else if (t === 'dual') {
+    const v = document.getElementById('l-vocal-verse').value;
+    const c = document.getElementById('l-vocal-chorus').value;
+    const b = document.getElementById('l-vocal-bridge').value;
+    return `verse: ${v}, chorus: ${c}${b ? ', bridge: '+b : ''}${toneStr}`;
+  } else if (t === 'call-response') {
+    const call = document.getElementById('l-vocal-call').value;
+    const resp = document.getElementById('l-vocal-response').value;
+    const pat = document.getElementById('l-vocal-pattern').value;
+    return `call & response — call: ${call}, response: ${resp}, pattern: ${pat}${toneStr}`;
+  } else if (t === 'harmony') {
+    const main = document.getElementById('l-vocal-main').value;
+    const h = document.getElementById('l-vocal-harmony-type').value;
+    return `${main} with ${h}${toneStr}`;
+  }
+  return '';
+}
+
+function saveOpts() {
+  const opts = {
+    genre: document.getElementById('l-genre').value,
+    mood: document.getElementById('l-mood').value,
+    theme: document.getElementById('l-theme').value,
+    bpm: document.getElementById('l-bpm').value,
+    length: document.getElementById('l-length').value,
+    lyric_style: document.getElementById('l-lyric-style').value,
+    instrument: document.getElementById('l-instrument').value,
+    vocal_type: document.getElementById('l-vocal-type').value,
+    vocal: document.getElementById('l-vocal').value,
+    vocal_verse: document.getElementById('l-vocal-verse')?.value || '',
+    vocal_chorus: document.getElementById('l-vocal-chorus')?.value || '',
+    vocal_bridge: document.getElementById('l-vocal-bridge')?.value || '',
+    vocal_call: document.getElementById('l-vocal-call')?.value || '',
+    vocal_response: document.getElementById('l-vocal-response')?.value || '',
+    vocal_pattern: document.getElementById('l-vocal-pattern')?.value || '',
+    vocal_main: document.getElementById('l-vocal-main')?.value || '',
+    vocal_harmony_type: document.getElementById('l-vocal-harmony-type')?.value || '',
+    vocal_tones: getVocalTones(),
+    avoid: document.getElementById('l-avoid')?.value||'',
+    sound: document.getElementById('l-sound').value,
+    structure: document.getElementById('l-structure').value,
+    count: document.getElementById('l-count').value,
+    langs: [...selLangs],
+    saved_at: new Date().toLocaleString(),
+  };
+  localStorage.setItem('last_lyrics_opts', JSON.stringify(opts));
+}
+
+function loadLastOpts() {
+  const raw = localStorage.getItem('last_lyrics_opts');
+  if (!raw) return;
+  try {
+    const opts = JSON.parse(raw);
+    const setVal = (id, val) => { const el=document.getElementById(id); if(el&&val!==undefined) el.value=val; };
+    setVal('l-genre', opts.genre);
+    setVal('l-mood', opts.mood);
+    setVal('l-theme', opts.theme);
+    if (opts.theme) { document.getElementById('theme-dd-label').textContent = opts.theme.split(' — ')[0] || opts.theme; }
+    setVal('l-bpm', opts.bpm);
+    setVal('l-length', opts.length);
+    setVal('l-lyric-style', opts.lyric_style);
+    setVal('l-instrument', opts.instrument);
+    setVal('l-vocal-type', opts.vocal_type);
+    updateVocalUI();
+    setVal('l-vocal', opts.vocal);
+    setVal('l-vocal-verse', opts.vocal_verse);
+    setVal('l-vocal-chorus', opts.vocal_chorus);
+    setVal('l-vocal-bridge', opts.vocal_bridge);
+    setVal('l-vocal-call', opts.vocal_call);
+    setVal('l-vocal-response', opts.vocal_response);
+    setVal('l-vocal-pattern', opts.vocal_pattern);
+    setVal('l-vocal-main', opts.vocal_main);
+    setVal('l-vocal-harmony-type', opts.vocal_harmony_type);
+    if (opts.vocal_tones) setVocalTones(opts.vocal_tones);
+    setVal('l-avoid', opts.avoid);
+    setVal('l-sound', opts.sound);
+    setVal('l-structure', opts.structure);
+    setVal('l-count', opts.count);
+    if (opts.langs) {
+      selLangs = new Set(opts.langs);
+      document.querySelectorAll('#lang-grid .lang-item').forEach(el => {
+        const code = LANGS[Array.from(document.querySelectorAll('#lang-grid .lang-item')).indexOf(el)]?.code;
+        if (code) el.classList.toggle('sel', selLangs.has(code));
+      });
+    }
+    document.getElementById('last-opts-hint').textContent = '불러옴: ' + (opts.saved_at || '');
+    setTimeout(() => { document.getElementById('last-opts-hint').textContent = ''; }, 3000);
+  } catch(e) { console.error(e); }
+}
+
+function checkLastOpts() {
+  const raw = localStorage.getItem('last_lyrics_opts');
+  if (raw) {
+    document.getElementById('load-opts-btn').style.display = 'inline-flex';
+    try {
+      const opts = JSON.parse(raw);
+      const parts = [];
+      if (opts.genre) parts.push(opts.genre);
+      if (opts.mood) parts.push(opts.mood);
+      document.getElementById('last-opts-hint').textContent = parts.length ? '저장됨: ' + parts.join(', ') : '';
+    } catch(e) {}
+  }
+}
+
+async function genLyrics() {
+  const genre=document.getElementById('l-genre').value.trim();
+  const mood=document.getElementById('l-mood').value.trim();
+  const theme=document.getElementById('l-theme').value.trim();
+  if (!genre&&!mood&&!theme){showErr('err-l','장르, 분위기, 주제 중 하나는 입력해주세요');return;}
+  saveOpts();
+  showErr('err-l','');
+  document.getElementById('l-btn').disabled=true;
+  document.getElementById('prog-l').style.display='block';
+  document.getElementById('lyrics-results').innerHTML='';
+  const opts = {
+    genre, mood, theme,
+    languages:[...selLangs],
+    structure:document.getElementById('l-structure').value,
+    count:parseInt(document.getElementById('l-count').value),
+    bpm:document.getElementById('l-bpm').value,
+    length:document.getElementById('l-length').value,
+    lyric_style:document.getElementById('l-lyric-style').value,
+    instrument:document.getElementById('l-instrument').value,
+    vocal:getVocalOption(),
+    avoid:document.getElementById('l-avoid')?.value.trim()||'',
+    sound:document.getElementById('l-sound').value,
+  };
+  try {
+    const res=await fetch('/api/lyrics/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(opts)});
+    const d=await res.json();
+    if(d.error){showErr('err-l',d.error);return;}
+    pollJob(d.job_id,'lyrics');
+  } catch(e){showErr('err-l','서버 오류: '+e.message);}
+  finally{document.getElementById('l-btn').disabled=false;}
+}
+
+// 전역 가사 저장소
+let lyricsStore = {}; // {lang: [{title, lyrics}]}
+
+function normLyrics(lyr) {
+  return (lyr||'').replace(/\\n/g,'\n').replace(/\\r/g,'');
+}
+
+function renderLyrics(results) {
+  document.getElementById('prog-l').style.display='none';
+  const container=document.getElementById('lyrics-results');
+  container.innerHTML='';
+  lyricsStore = {};
+
+  // Suno 태그 카드 (편집 가능)
+  const initTags = (results.length && results[0].suno_tags) ? results[0].suno_tags : '';
+  const sunoCard = document.createElement('div');
+  sunoCard.className='card';
+  sunoCard.id='suno-tag-card';
+  sunoCard.style.cssText='border-color:rgba(111,255,196,.25);margin-bottom:.875rem';
+  sunoCard.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--a3)">Suno 스타일 태그</span>
+      <div style="display:flex;gap:6px">
+        <button class="cp" style="color:var(--a4);border-color:rgba(255,202,111,.3)" onclick="toggleSunoEdit()">✎ 수정</button>
+        <button class="cp" style="color:var(--a3);border-color:rgba(111,255,196,.3)" onclick="cpEl('suno-tags-txt',this)">복사</button>
+        <button class="btn btn-g btn-sm" onclick="regenSunoTags()" style="font-size:10px;padding:3px 9px">↺ 재생성</button>
+      </div>
+    </div>
+    <div id="suno-tags-txt" style="font-size:13px;line-height:1.7;color:var(--tx)">${esc(initTags)}</div>
+    <textarea id="suno-tags-edit" style="display:none;width:100%;padding:9px 11px;background:var(--s2);border:1px solid var(--a3);border-radius:6px;color:var(--tx);font-size:13px;line-height:1.7;resize:vertical;min-height:60px;font-family:var(--sans)">${esc(initTags)}</textarea>
+    <div id="suno-edit-btns" style="display:none;margin-top:7px;display:none">
+      <button class="btn btn-p btn-sm" onclick="saveSunoTags()">저장</button>
+      <button class="btn btn-g btn-sm" style="margin-left:6px" onclick="cancelSunoEdit()">취소</button>
+    </div>`;
+  container.appendChild(sunoCard);
+
+  results.forEach(r=>{
+    // 가사 저장
+    lyricsStore[r.lang] = (r.songs||[]).map(s=>({title: s.title||'', lyrics: normLyrics(s.lyrics||'')}));
+    renderLangCard(r, container);
+  });
+}
+
+function renderLangCard(r, container, replaceEl) {
+  const color=LANG_COLORS[r.lang]||'#888';
+  const isKo = r.lang === 'ko';
+  const songs = lyricsStore[r.lang] || [];
+  const div=document.createElement('div');
+  div.className='lyrics-res';
+  div.id='lr-card-'+r.lang;
+
+  const tabsHtml=songs.map((s,i)=>{
+    const t=(s.title||`곡 ${i+1}`).replace(/^["'\`『「【[{(]+|["'\`』」】\]})+$]/g,'').trim();
+    return `<div class="song-tab${i===0?' active':''}" onclick="showSongTab(this,${i},'lr-${r.lang}')">${esc(t||`곡 ${i+1}`)}</div>`;
+  }).join('');
+
+  const panesHtml=songs.map((s,i)=>{
+    const lyr = s.lyrics;
+    const lyrEsc = lyr.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const lyrCopy = lyr.replace(/'/g,"&#39;");
+
+    if (isKo) {
+      return `<div class="song-pane${i===0?' active':''}" id="lr-${r.lang}-pane-${i}">
+        <div style="display:flex;gap:6px;justify-content:flex-end;margin-bottom:7px">
+          <button class="cp" style="color:var(--a4);border-color:rgba(255,202,111,.3)" onclick="toggleEdit('lr-${r.lang}-pane-${i}',${i})">✎ 편집</button>
+          <button class="cp" data-lang="${r.lang}" data-idx="${i}" onclick="cpFromStore(this)">복사</button>
+        </div>
+        <div class="lyrics-txt" id="lr-${r.lang}-view-${i}">${lyrEsc}</div>
+        <div id="lr-${r.lang}-edit-${i}" style="display:none">
+          <textarea style="width:100%;min-height:220px;padding:.875rem;background:var(--s1);border:1px solid var(--a1);border-radius:6px;color:var(--tx);font-size:12px;line-height:1.9;resize:vertical;font-family:var(--sans)" id="lr-${r.lang}-ta-${i}"></textarea>
+          <div style="display:flex;gap:6px;margin-top:7px">
+            <button class="btn btn-p btn-sm" onclick="applyEdit('${r.lang}',${i})">✓ 적용 및 번역</button>
+            <button class="btn btn-g btn-sm" onclick="cancelEdit('lr-${r.lang}-pane-${i}',${i})">취소</button>
+          </div>
+          <div class="prog" id="lr-${r.lang}-retrans-prog-${i}" style="margin-top:8px">
+            <div class="prog-txt">다른 언어로 번역 중...</div>
+            <div class="prog-bar"><div class="prog-fill" style="background:var(--a2)"></div></div>
+          </div>
+        </div>
+      </div>`;
+    } else {
+      return `<div class="song-pane${i===0?' active':''}" id="lr-${r.lang}-pane-${i}">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:7px">
+          <button class="cp" data-lang="${r.lang}" data-idx="${i}" onclick="cpFromStore(this)">복사</button>
+        </div>
+        <div class="lyrics-txt" id="lr-${r.lang}-view-${i}">${lyrEsc}</div>
+      </div>`;
+    }
+  }).join('');
+
+  div.innerHTML=`<div class="lr-head" onclick="this.nextElementSibling.classList.toggle('open')"><span class="lr-lang" style="background:${color}22;color:${color};border:1px solid ${color}44">${r.lang_name}</span><span style="font-size:13px;font-weight:500;margin-left:6px">${songs.length}곡</span><span style="margin-left:auto;font-size:11px;color:var(--m2)">▼</span></div><div class="lr-body open" id="lr-${r.lang}"><div class="song-tab-bar">${tabsHtml}</div>${panesHtml}</div>`;
+
+  if (replaceEl) replaceEl.replaceWith(div);
+  else container.appendChild(div);
+}
+
+function toggleEdit(paneId, idx) {
+  const pane = document.getElementById(paneId);
+  const view = pane.querySelector('[id$="-view-'+idx+'"]');
+  const edit = pane.querySelector('[id$="-edit-'+idx+'"]');
+  const ta = pane.querySelector('[id$="-ta-'+idx+'"]');
+  if (edit.style.display === 'none') {
+    // store에서 원본 가사 가져오기
+    const lang = pane.id.replace('lr-','').replace(/-pane-\d+$/,'');
+    const storeEntry = lyricsStore[lang] && lyricsStore[lang][idx];
+    ta.value = storeEntry ? storeEntry.lyrics : view.textContent;
+    view.style.display = 'none';
+    edit.style.display = 'block';
+  }
+}
+
+function cancelEdit(paneId, idx) {
+  const pane = document.getElementById(paneId);
+  const view = pane.querySelector('[id$="-view-'+idx+'"]');
+  const edit = pane.querySelector('[id$="-edit-'+idx+'"]');
+  view.style.display = 'block';
+  edit.style.display = 'none';
+}
+
+// Suno 태그 편집
+function toggleSunoEdit() {
+  const txt = document.getElementById('suno-tags-txt');
+  const ta = document.getElementById('suno-tags-edit');
+  const btns = document.getElementById('suno-edit-btns');
+  ta.value = txt.textContent;
+  txt.style.display = 'none';
+  ta.style.display = 'block';
+  btns.style.display = 'block';
+}
+
+function saveSunoTags() {
+  const txt = document.getElementById('suno-tags-txt');
+  const ta = document.getElementById('suno-tags-edit');
+  const btns = document.getElementById('suno-edit-btns');
+  txt.textContent = ta.value.trim();
+  txt.style.display = 'block';
+  ta.style.display = 'none';
+  btns.style.display = 'none';
+}
+
+function cancelSunoEdit() {
+  const txt = document.getElementById('suno-tags-txt');
+  const ta = document.getElementById('suno-tags-edit');
+  const btns = document.getElementById('suno-edit-btns');
+  txt.style.display = 'block';
+  ta.style.display = 'none';
+  btns.style.display = 'none';
+}
+
+async function regenSunoTags() {
+  const btn = event.target;
+  btn.textContent = '↺ 생성 중...';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/suno/tags', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        genre: document.getElementById('l-genre').value,
+        mood: document.getElementById('l-mood').value,
+        theme: document.getElementById('l-theme').value,
+        bpm: document.getElementById('l-bpm').value,
+        length: document.getElementById('l-length').value,
+        lyric_style: document.getElementById('l-lyric-style').value,
+        instrument: document.getElementById('l-instrument').value,
+        vocal: getVocalOption(),
+        sound: document.getElementById('l-sound').value,
+      })
+    });
+    const d = await res.json();
+    if (d.success) {
+      document.getElementById('suno-tags-txt').textContent = d.tags;
+      document.getElementById('suno-tags-edit').value = d.tags;
+    }
+  } catch(e) { alert('재생성 실패: ' + e.message); }
+  finally { btn.textContent = '↺ 재생성'; btn.disabled = false; }
+}
+
+function cpFromStore(btn) {
+  const lang = btn.dataset.lang;
+  const idx = parseInt(btn.dataset.idx);
+  const text = lyricsStore[lang] && lyricsStore[lang][idx] ? lyricsStore[lang][idx].lyrics : '';
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '복사됨 ✓';
+    btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = '복사'; btn.classList.remove('ok'); }, 1800);
+  });
+}
+
+async function applyEdit(lang, idx) {
+  const ta = document.getElementById('lr-'+lang+'-ta-'+idx);
+  const newLyrics = ta.value.trim();
+  if (!newLyrics) return;
+
+  // 한국어 저장소 업데이트 & 뷰 갱신
+  lyricsStore[lang][idx].lyrics = newLyrics;
+  const view = document.getElementById('lr-'+lang+'-view-'+idx);
+  view.innerHTML = newLyrics.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  view.style.display = 'block';
+  document.getElementById('lr-'+lang+'-edit-'+idx).style.display = 'none';
+
+  const otherLangs = Object.keys(lyricsStore).filter(l => l !== 'ko');
+  if (!otherLangs.length) return;
+
+  const prog = document.getElementById('lr-'+lang+'-retrans-prog-'+idx);
+  if (prog) prog.style.display = 'block';
+
+  const updateView = (tLang, translated) => {
+    lyricsStore[tLang][idx] = lyricsStore[tLang][idx] || {};
+    lyricsStore[tLang][idx].lyrics = translated;
+    const tView = document.getElementById('lr-'+tLang+'-view-'+idx);
+    if (tView) tView.innerHTML = translated.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  };
+
+  const doTranslateOne = async (text, tLang) => {
+    const res = await fetch('/api/translate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text, target_lang: tLang})
+    });
+    const d = await res.json();
+    return d.success ? d.translated : null;
+  };
+
+  // 한국어 → 나머지 모든 언어 병렬 번역
+  await Promise.allSettled(otherLangs.map(async tLang => {
+    try {
+      const translated = await doTranslateOne(newLyrics, tLang);
+      if (translated) updateView(tLang, translated);
+    } catch(e) { console.error(tLang, e); }
+  }));
+
+  if (prog) prog.style.display = 'none';
+}
+
+function showSongTab(el, idx, containerId) {
+  const container=document.getElementById(containerId);
+  container.querySelectorAll('.song-tab').forEach(t=>t.classList.remove('active'));
+  container.querySelectorAll('.song-pane').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(containerId+'-pane-'+idx).classList.add('active');
+}
+
+// ── 번역 ──────────────────────────────────────────────────────
+async function polishLyrics() {
+  const ta = document.getElementById('tr-in');
+  const text = ta.value.trim();
+  if (!text) { showErr('err-tr','가사를 먼저 입력해주세요'); return; }
+
+  // 영어 감지
+  const hasKorean = /[가-힣]/.test(text);
+  if (hasKorean) { showErr('err-tr','영어 가사에만 사용할 수 있습니다'); return; }
+
+  showErr('err-tr','');
+  document.getElementById('polish-btn').disabled = true;
+  document.getElementById('prog-polish').style.display = 'block';
+
+  try {
+    const res = await fetch('/api/polish/lyrics', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text})
+    });
+    const d = await res.json();
+    if (!d.success) { showErr('err-tr', d.error); return; }
+    ta.value = d.polished;
+    // 시각적으로 다듬어진 것을 알림
+    ta.style.borderColor = 'var(--a4)';
+    setTimeout(() => ta.style.borderColor = '', 2000);
+  } catch(e) { showErr('err-tr','서버 오류: '+e.message); }
+  finally {
+    document.getElementById('polish-btn').disabled = false;
+    document.getElementById('prog-polish').style.display = 'none';
+  }
+}
+
+async function doTranslate() {
+  const text = document.getElementById('tr-in').value.trim();
+  if (!text) { showErr('err-tr','가사를 입력해주세요'); return; }
+  if (!trSelLangs.size) { showErr('err-tr','번역할 언어를 선택해주세요'); return; }
+  showErr('err-tr','');
+  document.getElementById('tr-btn').disabled = true;
+  document.getElementById('prog-tr').style.display = 'block';
+  document.getElementById('tr-results').innerHTML = '';
+  const langs = [...trSelLangs];
+  let done = 0;
+
+  const updateProg = () => {
+    document.getElementById('prog-tr-txt').textContent = `번역 중... ${done}/${langs.length}`;
+  };
+  updateProg();
+
+  // 원문 언어 감지
+  const hasKorean = /[\uAC00-\uD7A3]/.test(text);
+  const srcLang = hasKorean ? 'ko' : 'other';
+
+  const orderedResults = [];
+
+  // STEP 1: 원문이 한국어면 그대로, 아니면 한국어로 먼저 번역
+  let koText = text;
+  if (langs.includes('ko')) {
+    if (srcLang === 'ko') {
+      orderedResults.push({lang:'ko', data:{success:true, translated:text, lang_name:'한국어'}});
+    } else {
+      try {
+        const res = await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,target_lang:'ko'})});
+        const d = await res.json();
+        if (d.success) koText = d.translated;
+        orderedResults.push({lang:'ko', data:d});
+      } catch(e) { orderedResults.push({lang:'ko',data:{success:false,error:e.message}}); }
+    }
+    done++; updateProg();
+  } else if (srcLang !== 'ko') {
+    // ko 선택 안 했어도 다른 언어의 기반으로 한국어 번역 획득
+    try {
+      const res = await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,target_lang:'ko'})});
+      const d = await res.json();
+      if (d.success) koText = d.translated;
+    } catch(e) {}
+  }
+
+  // STEP 2: 나머지 언어 모두 한국어 기반으로 병렬 번역
+  const otherLangs = langs.filter(l => l !== 'ko');
+  const otherResults = await Promise.allSettled(
+    otherLangs.map(async lang => {
+      const res = await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:koText,target_lang:lang})});
+      const d = await res.json();
+      done++; updateProg();
+      return {lang, data:d};
+    })
+  );
+  otherResults.forEach(r => {
+    if (r.status==='fulfilled') orderedResults.push(r.value);
+    else orderedResults.push({lang:'?',data:{success:false,error:r.reason?.message}});
+  });
+
+  document.getElementById('prog-tr').style.display = 'none';
+  document.getElementById('tr-btn').disabled = false;
+
+  const container = document.getElementById('tr-results');
+
+  // 결과 저장소 (전역 저장)
+  window._trStore = {};
+  orderedResults.forEach(o => {
+    if (o.data?.success) window._trStore[o.lang] = o.data.translated;
+  });
+
+  const allResults = orderedResults;
+
+  allResults.forEach(({lang, data: d}) => {
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.style.marginBottom = '8px';
+    if (!d.success) {
+      div.innerHTML = `<div style="font-size:12px;color:#ff7878">${esc(LANGS.find(l=>l.code===lang)?.name||lang)} 번역 실패: ${esc(d.error||'')}</div>`;
+    } else {
+      const uid = 'tr-out-' + lang;
+      const taId = 'tr-ta-' + lang;
+      const editId = 'tr-edit-' + lang;
+      const color = LANG_COLORS[lang] || '#888';
+      const isKo = lang === 'ko';
+      div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span class="lr-lang" style="background:${color}22;color:${color};border:1px solid ${color}44;font-family:var(--mono);font-size:11px;padding:2px 9px;border-radius:20px;font-weight:700">${esc(d.lang_name||LANG_NAMES_JS[lang]||lang)}</span>
+          <div style="display:flex;gap:6px">
+            ${isKo ? `<button class="cp" style="color:var(--a4);border-color:rgba(255,202,111,.3)" onclick="trToggleEdit('${lang}')">✎ 편집</button>` : ''}
+            <button class="cp" onclick="cpEl('${uid}',this)">복사</button>
+          </div>
+        </div>
+        <div class="lyrics-txt" id="${uid}">${esc(d.translated)}</div>
+        ${isKo ? `
+        <div id="${editId}" style="display:none;margin-top:8px">
+          <textarea id="${taId}" style="width:100%;min-height:200px;padding:.875rem;background:var(--s1);border:1px solid var(--a1);border-radius:6px;color:var(--tx);font-size:12px;line-height:1.9;resize:vertical;font-family:var(--sans)">${esc(d.translated)}</textarea>
+          <div style="display:flex;gap:6px;margin-top:7px">
+            <button class="btn btn-p btn-sm" onclick="trApplyEdit('${lang}')">✓ 적용 및 번역</button>
+            <button class="btn btn-g btn-sm" onclick="trCancelEdit('${lang}')">취소</button>
+          </div>
+          <div class="prog" id="tr-reprog-${lang}" style="margin-top:8px">
+            <div class="prog-txt">다른 언어로 번역 중...</div>
+            <div class="prog-bar"><div class="prog-fill" style="background:var(--a2)"></div></div>
+          </div>
+        </div>` : ''}`;
+    }
+    container.appendChild(div);
+  });
+}
+
+const LANG_NAMES_JS = {ko:'한국어',en:'English',ja:'日本語',zh:'中文(繁體)',pt:'Português',es:'Español',vi:'Tiếng Việt',de:'Deutsch',it:'Italiano',nl:'Nederlands',sv:'Svenska'};
+
+function trToggleEdit(lang) {
+  const view = document.getElementById('tr-out-'+lang);
+  const edit = document.getElementById('tr-edit-'+lang);
+  const ta = document.getElementById('tr-ta-'+lang);
+  if (edit.style.display === 'none') {
+    ta.value = view.textContent;
+    view.style.display = 'none';
+    edit.style.display = 'block';
+  }
+}
+
+function trCancelEdit(lang) {
+  document.getElementById('tr-out-'+lang).style.display = 'block';
+  document.getElementById('tr-edit-'+lang).style.display = 'none';
+}
+
+async function trApplyEdit(lang) {
+  const ta = document.getElementById('tr-ta-'+lang);
+  const newText = ta.value.trim();
+  if (!newText) return;
+
+  // 뷰 업데이트
+  const view = document.getElementById('tr-out-'+lang);
+  view.innerHTML = newText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  view.style.display = 'block';
+  document.getElementById('tr-edit-'+lang).style.display = 'none';
+  if (!window._trStore) window._trStore = {};
+  window._trStore[lang] = newText; // ← 저장소에도 반영
+
+  const prog = document.getElementById('tr-reprog-'+lang);
+  if (prog) prog.style.display = 'block';
+
+  // ko 편집 → 나머지 모든 언어 병렬 번역 (한국어 기반)
+  const otherLangs = [...trSelLangs].filter(l => l !== 'ko');
+  await Promise.allSettled(otherLangs.map(async tLang => {
+    try {
+      const r = await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:newText,target_lang:tLang})});
+      const d = await r.json();
+      if (d.success) {
+        window._trStore[tLang] = d.translated;
+        const v = document.getElementById('tr-out-'+tLang);
+        if (v) v.innerHTML = d.translated.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+    } catch(e) { console.error(tLang, e); }
+  }));
+
+  if (prog) prog.style.display = 'none';
+}
+
+// ── YT MP3 ───────────────────────────────────────────────────
+async function ytDownload() {
+  const url=document.getElementById('yt-url').value.trim();
+  if(!url){showErr('err-yt','URL을 입력해주세요');return;}
+  showErr('err-yt','');
+  document.getElementById('yt-btn').disabled=true;
+  document.getElementById('prog-yt').style.display='block';
+  try {
+    const r=await fetch('/api/yt/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const d=await r.json();
+    if(d.error){showErr('err-yt',d.error);return;}
+    pollJob(d.job_id,'yt');
+  } catch(e){showErr('err-yt','서버 오류: '+e.message);}
+  finally{document.getElementById('yt-btn').disabled=false;}
+}
+
+function initMp3Drop() {
+  const drop=document.getElementById('mp3-drop');
+  drop.addEventListener('dragover',e=>{e.preventDefault();drop.style.borderColor='var(--a1)'});
+  drop.addEventListener('dragleave',()=>drop.style.borderColor='var(--b2)');
+  drop.addEventListener('drop',e=>{e.preventDefault();drop.style.borderColor='var(--b2)';uploadMp3Files(e.dataTransfer.files)});
+}
+
+async function uploadMp3(input) { uploadMp3Files(input.files); }
+async function uploadMp3Files(files) {
+  if(!files.length) return;
+  const fd=new FormData();
+  Array.from(files).forEach(f=>fd.append('files',f));
+  const r=await fetch('/api/yt/upload-mp3',{method:'POST',body:fd});
+  const d=await r.json();
+  const newTracks=(d.tracks||[]).filter(t=>!isDupe(t));
+  trackData=[...trackData,...newTracks];
+  recalc(); renderTracks();
+}
+
+function isDupe(t) { return trackData.some(x=>x.title.toLowerCase()===t.title.toLowerCase()||(t.file&&x.file===t.file)); }
+function recalc() { let c=0; trackData.forEach(t=>{t.timestamp=fmt(c);c+=t.duration||0;}); }
+
+function fmt(sec) {
+  sec=Math.floor(sec||0);
+  const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function renderTracks() {
+  if(!trackData.length){document.getElementById('track-section').style.display='none';document.getElementById('yt-empty').style.display='block';return;}
+  document.getElementById('yt-empty').style.display='none';
+  document.getElementById('track-section').style.display='block';
+  const total=trackData.reduce((s,t)=>s+(t.duration||0),0);
+  document.getElementById('track-meta').textContent=`${trackData.length}곡 · ${fmt(total)}`;
+  const list=document.getElementById('track-list');
+  list.innerHTML='';
+  trackData.forEach((t,i)=>{
+    const row=document.createElement('div');
+    row.className='track-item'; row.draggable=false; row.dataset.idx=i;
+    const src=t.source==='upload'?'<span class="src-tag src-up">업로드</span>':'<span class="src-tag src-yt">YT</span>';
+    row.innerHTML=`<span class="drag-h" draggable="true">≡</span><span style="font-family:var(--mono);font-size:11px;color:var(--m1);text-align:center">${i+1}</span><div style="min-width:0"><div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</div><div style="font-size:11px;color:var(--m2);display:flex;gap:5px;align-items:center">${src}<span class="ts-tag">${t.timestamp}</span><span style="font-family:var(--mono);font-size:11px">${t.duration_fmt||''}</span></div></div><div style="display:flex;gap:4px">${t.file?`<button class="cp" onclick="dlFile('${esc(t.file)}')">↓</button>`:''}  <button class="cp" style="color:var(--a2);border-color:rgba(255,111,160,.25)" onclick="removeTrack(${i})">✕</button></div>`;
+    const h=row.querySelector('.drag-h');
+    h.addEventListener('dragstart',e=>{dragSrcIdx=i;row.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',i)});
+    h.addEventListener('dragend',()=>{row.classList.remove('dragging');document.querySelectorAll('.track-item').forEach(r=>r.classList.remove('drag-over'))});
+    row.addEventListener('dragover',e=>{e.preventDefault();row.classList.add('drag-over')});
+    row.addEventListener('dragleave',()=>row.classList.remove('drag-over'));
+    row.addEventListener('drop',e=>{e.preventDefault();row.classList.remove('drag-over');const dest=parseInt(row.dataset.idx);if(dragSrcIdx===null||dragSrcIdx===dest)return;const moved=trackData.splice(dragSrcIdx,1)[0];trackData.splice(dest,0,moved);dragSrcIdx=null;recalc();renderTracks()});
+    list.appendChild(row);
+  });
+  buildTimestamp();
+}
+
+function removeTrack(i){trackData.splice(i,1);recalc();renderTracks();}
+function clearTracks(){trackData=[];renderTracks();}
+
+function buildTimestamp(){
+  const lines=['🎵 Tracklist\n',...trackData.map(t=>{const a=t.artist?t.artist+' - ':'';return `${t.timestamp} - ${a}${t.title}`;})];
+  document.getElementById('timestamp-txt').textContent=lines.join('\n');
+}
+
+function initSpChips() {
+  ['genre','mood'].forEach(k => {
+    const c = document.getElementById('sp-chips-'+k);
+    if (!c) return;
+    CHIP_DATA[k].forEach(w => {
+      const inp = document.getElementById('sp-'+k);
+      const {wrap, btn} = makeChipBtn(w, () => toggleChipVal(inp, w, btn));
+      c.appendChild(wrap);
+    });
+  });
+}
+
+function initSpThemeDropdown() {
+  const panel = document.getElementById('sp-theme-dd-panel');
+  if (!panel) return;
+  THEME_DATA.forEach(cat => {
+    const catDiv = document.createElement('div');
+    catDiv.className = 'theme-cat';
+    catDiv.textContent = cat.cat;
+    panel.appendChild(catDiv);
+    cat.items.forEach(item => {
+      const opt = document.createElement('div');
+      opt.className = 'theme-opt';
+      opt.innerHTML = `<strong>${item.label}</strong><span>${item.desc}</span>`;
+      opt.onclick = () => {
+        document.getElementById('sp-theme').value = item.label + ' — ' + item.desc;
+        document.getElementById('sp-theme-dd-label').textContent = item.label;
+        document.getElementById('sp-theme-dd-btn').classList.add('open');
+        closeSpThemeDD();
+      };
+      panel.appendChild(opt);
+    });
+  });
+  document.addEventListener('click', e => {
+    if (!document.getElementById('sp-theme-dd').contains(e.target)) closeSpThemeDD();
+  });
+}
+
+function toggleSpThemeDD() {
+  document.getElementById('sp-theme-dd-btn').classList.toggle('open');
+  document.getElementById('sp-theme-dd-panel').classList.toggle('open');
+}
+function closeSpThemeDD() {
+  document.getElementById('sp-theme-dd-btn').classList.remove('open');
+  document.getElementById('sp-theme-dd-panel').classList.remove('open');
+}
+
+function initSpVocalTones() {
+  const tones = [
+    {val:'warm',label:'따뜻한'},{val:'bright',label:'밝은/청량한'},{val:'dark / husky',label:'다크/허스키'},
+    {val:'raspy / gritty',label:'걸걸한/거친'},{val:'smooth / silky',label:'부드러운/실키'},{val:'airy / breathy',label:'공기감/숨소리'},
+    {val:'nasal',label:'코맹맹이/비음'},{val:'rich / deep',label:'풍부한/깊은'},{val:'thin / delicate',label:'얇고 섬세한'},
+    {val:'resonant / chest voice',label:'흉성/울림'},{val:'head voice / light',label:'두성/가볍게'},{val:'gruff / rough',label:'거칠고 투박한'},
+    {val:'sweet / innocent',label:'달콤한/청순한'},{val:'sultry / seductive',label:'섹시/저음 매력'},{val:'energetic / bright',label:'에너제틱/쾌활'},
+    {val:'melancholic / sad tone',label:'우울/슬픈 톤'},{val:'powerful / commanding',label:'강렬/카리스마'},{val:'soft / gentle',label:'소프트/부드러운'},
+  ];
+  const grid = document.getElementById('sp-vocal-tone-grid');
+  if (!grid) return;
+  tones.forEach(t => {
+    const btn = document.createElement('button');
+    const wrap = document.createElement('span');
+    wrap.className = 'chip-wrap';
+    btn.className = 'chip chip-p';
+    btn.style.cssText = 'text-align:left;justify-content:flex-start;font-size:11px;padding:5px 9px';
+    btn.dataset.val = t.val;
+    btn.textContent = t.label;
+    btn.onclick = () => btn.classList.toggle('sel');
+    wrap.appendChild(btn);
+    if (t.tip) {
+      const tip = document.createElement('span');
+      tip.className = 'chip-tip';
+      tip.textContent = t.tip;
+      wrap.appendChild(tip);
+    }
+    grid.appendChild(wrap);
+  });
+}
+
+function updateSpVocalUI() {
+  const t = document.getElementById('sp-vocal-type').value;
+  document.getElementById('sp-vocal-single').style.display = t==='single' ? 'block' : 'none';
+  document.getElementById('sp-vocal-dual').style.display = t==='dual' ? 'block' : 'none';
+  document.getElementById('sp-vocal-call-response').style.display = t==='call-response' ? 'block' : 'none';
+  document.getElementById('sp-vocal-harmony').style.display = t==='harmony' ? 'block' : 'none';
+}
+
+function getSpVocalOption() {
+  const t = document.getElementById('sp-vocal-type').value;
+  const tones = getSpVocalTones();
+  const toneStr = tones ? `, ${tones} tone` : '';
+  if (t === 'single') {
+    return (document.getElementById('sp-vocal').value || '') + toneStr;
+  } else if (t === 'dual') {
+    const v = document.getElementById('sp-vocal-verse').value;
+    const c = document.getElementById('sp-vocal-chorus').value;
+    const b = document.getElementById('sp-vocal-bridge').value;
+    return `verse: ${v}, chorus: ${c}${b?', bridge: '+b:''}${toneStr}`;
+  } else if (t === 'call-response') {
+    const call = document.getElementById('sp-vocal-call').value;
+    const resp = document.getElementById('sp-vocal-response').value;
+    const pat = document.getElementById('sp-vocal-pattern').value;
+    return `call & response — call: ${call}, response: ${resp}, pattern: ${pat}${toneStr}`;
+  } else if (t === 'harmony') {
+    const main = document.getElementById('sp-vocal-main').value;
+    const h = document.getElementById('sp-vocal-harmony-type').value;
+    return `${main} with ${h}${toneStr}`;
+  }
+  return '';
+}
+
+function exportToSunoPrompt() {
+  // 가사 생성기 현재 세팅을 수노 프롬프트로 복사
+  const setVal = (spId, lId) => {
+    const src = document.getElementById(lId);
+    const dst = document.getElementById(spId);
+    if (src && dst) dst.value = src.value;
+  };
+  const setText = (spId, lId) => {
+    const src = document.getElementById(lId);
+    const dst = document.getElementById(spId);
+    if (src && dst) dst.value = src.value;
+  };
+
+  setText('sp-genre', 'l-genre');
+  setText('sp-mood', 'l-mood');
+  setText('sp-theme', 'l-theme');
+
+  // 테마 드롭다운 레이블도 복사
+  const lLabel = document.getElementById('theme-dd-label');
+  const spLabel = document.getElementById('sp-theme-dd-label');
+  if (lLabel && spLabel) spLabel.textContent = lLabel.textContent;
+
+  setVal('sp-bpm', 'l-bpm');
+  setVal('sp-lyric-style', 'l-lyric-style');
+  setVal('sp-instrument', 'l-instrument');
+  setVal('sp-sound', 'l-sound');
+  setVal('sp-structure', 'l-structure');
+
+  // 보컬 구성 복사
+  const lVocalType = document.getElementById('l-vocal-type').value;
+  document.getElementById('sp-vocal-type').value = lVocalType;
+  updateSpVocalUI();
+
+  if (lVocalType === 'single') {
+    setVal('sp-vocal', 'l-vocal');
+  } else if (lVocalType === 'dual') {
+    setVal('sp-vocal-verse', 'l-vocal-verse');
+    setVal('sp-vocal-chorus', 'l-vocal-chorus');
+    setVal('sp-vocal-bridge', 'l-vocal-bridge');
+  } else if (lVocalType === 'call-response') {
+    setVal('sp-vocal-call', 'l-vocal-call');
+    setVal('sp-vocal-response', 'l-vocal-response');
+    setVal('sp-vocal-pattern', 'l-vocal-pattern');
+  } else if (lVocalType === 'harmony') {
+    setVal('sp-vocal-main', 'l-vocal-main');
+    setVal('sp-vocal-harmony-type', 'l-vocal-harmony-type');
+  }
+
+  // 보컬 톤 복사
+  const lTones = Array.from(document.querySelectorAll('#vocal-tone-grid .chip.sel')).map(b=>b.dataset.val);
+  document.querySelectorAll('#sp-vocal-tone-grid .chip').forEach(b => {
+    b.classList.toggle('sel', lTones.includes(b.dataset.val));
+  });
+
+  // 칩 선택 상태 복사 (장르/분위기)
+  ['genre','mood'].forEach(k => {
+    const lSelected = Array.from(document.querySelectorAll(`#chips-${k} .chip.sel`)).map(b=>b.textContent);
+    document.querySelectorAll(`#sp-chips-${k} .chip`).forEach(b => {
+      b.classList.toggle('sel', lSelected.includes(b.textContent));
+    });
+  });
+
+  // 수노 프롬프트 탭으로 이동
+  document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-suno-prompt').classList.add('active');
+  document.getElementById('tb-title').textContent = 'Suno 프롬프트 생성기';
+  document.querySelector('[data-page="suno-prompt"]').classList.add('active');
+}
+
+function getSpVocalTones() {
+  return Array.from(document.querySelectorAll('#sp-vocal-tone-grid .chip.sel')).map(b=>b.dataset.val).join(', ');
+}
+
+function getSpVocalOption() {
+  const base = document.getElementById('sp-vocal').value;
+  const tones = getSpVocalTones();
+  return base + (tones ? `, ${tones} tone` : '');
+}
+
+async function genSunoPrompt() {
+  const genre = document.getElementById('sp-genre').value.trim();
+  const mood = document.getElementById('sp-mood').value.trim();
+  const theme = document.getElementById('sp-theme').value.trim();
+  if (!genre && !mood && !theme) { showErr('err-sp','장르, 분위기, 주제 중 하나는 입력해주세요'); return; }
+  showErr('err-sp','');
+  document.getElementById('sp-btn').disabled = true;
+  document.getElementById('prog-sp').style.display = 'block';
+  document.getElementById('sp-results').innerHTML = '';
+  try {
+    const res = await fetch('/api/suno/prompt', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        genre, mood, theme,
+        bpm: document.getElementById('sp-bpm').value,
+        lyric_style: document.getElementById('sp-lyric-style').value,
+        instrument: document.getElementById('sp-instrument').value,
+        vocal: getSpVocalOption(),
+        sound: document.getElementById('sp-sound').value,
+        structure: document.getElementById('sp-structure').value,
+        count: parseInt(document.getElementById('sp-count').value),
+      })
+    });
+    const d = await res.json();
+    document.getElementById('prog-sp').style.display = 'none';
+    if (!d.success) { showErr('err-sp', d.error); return; }
+    renderSunoPrompts(d.prompts);
+  } catch(e) { showErr('err-sp','서버 오류: '+e.message); }
+  finally { document.getElementById('sp-btn').disabled = false; }
+}
+
+function renderSunoPrompts(prompts) {
+  const container = document.getElementById('sp-results');
+  container.innerHTML = '';
+  prompts.forEach((p, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.marginBottom = '8px';
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--a3);background:rgba(111,255,196,.1);padding:2px 9px;border-radius:20px">Set ${i+1}</span>
+        <button class="cp" style="color:var(--a3);border-color:rgba(111,255,196,.3)" onclick="cpAllSunoSet(this,${i})">전체 복사</button>
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="font-size:11px;color:var(--m2);margin-bottom:4px">제목 아이디어</div>
+        <div style="font-size:13px;font-weight:500;color:var(--tx)" id="sp-title-${i}">${esc(p.title||'')}</div>
+      </div>
+      <div style="margin-bottom:6px">
+        <div style="font-size:11px;color:var(--m2);margin-bottom:4px">스타일 태그</div>
+        <div style="font-size:12px;color:var(--a3);line-height:1.7" id="sp-tags-${i}">${esc(p.tags||'')}</div>
+      </div>
+      ${p.description ? `<div style="font-size:11px;color:var(--m2);line-height:1.6;padding-top:6px;border-top:1px solid var(--b1)" id="sp-desc-${i}">${esc(p.description)}</div>` : ''}`;
+    container.appendChild(card);
+  });
+  window._spPrompts = prompts;
+}
+
+function cpAllSunoSet(btn, idx) {
+  const p = window._spPrompts && window._spPrompts[idx];
+  if (!p) return;
+  const text = `제목: ${p.title}\n스타일: ${p.tags}${p.description ? '\n설명: '+p.description : ''}`;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '복사됨 ✓'; btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = '전체 복사'; btn.classList.remove('ok'); }, 1800);
+  });
+}
+
+// ── YouTube 최적화 ────────────────────────────────────────────
+function saveYtApiKey() {
+  const key = document.getElementById('yt-api-key-input').value.trim();
+  if (!key) return;
+  localStorage.setItem('yt_api_key', key);
+  fetch('/api/settings', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({yt_api_key:key})});
+  const notice = document.getElementById('yt-api-notice');
+  if (notice) notice.style.display = 'none';
+  alert('YouTube API 키 저장됨!');
+}
+
+function checkYtApiKey() {
+  const key = localStorage.getItem('yt_api_key');
+  if (key) {
+    document.getElementById('yt-api-key-input').value = key;
+    fetch('/api/settings', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({yt_api_key:key})});
+  } else {
+    const notice = document.getElementById('yt-api-notice');
+    if (notice) notice.style.display = 'block';
+  }
+}
+
+async function genYtOpt() {
+  const title = document.getElementById('yo-title').value.trim();
+  const genre = document.getElementById('yo-genre').value.trim();
+  const mood = document.getElementById('yo-mood').value.trim();
+  if (!title && !genre && !mood) { showErr('err-yo','제목 또는 장르/분위기를 입력해주세요'); return; }
+  showErr('err-yo','');
+  document.getElementById('yo-btn').disabled = true;
+  document.getElementById('prog-yo').style.display = 'block';
+  document.getElementById('yo-results').style.display = 'none';
+  ['yo-refs-card','yo-titles-card','yo-desc-card','yo-tags-card','yo-hashtags-card','yo-comment-card'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.style.display = 'none';
+  });
+
+  try {
+    const res = await fetch('/api/youtube/optimize', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        title, genre, mood,
+        lang: document.getElementById('yo-lang').value,
+        lyrics: document.getElementById('yo-lyrics').value.trim(),
+        options: {
+          titles: document.getElementById('yo-titles').checked,
+          description: document.getElementById('yo-desc').checked,
+          tags: document.getElementById('yo-tags').checked,
+          comment: document.getElementById('yo-comment').checked,
+          hashtags: document.getElementById('yo-hashtags').checked,
+        }
+      })
+    });
+    const d = await res.json();
+    document.getElementById('prog-yo').style.display = 'none';
+    if (!d.success) { showErr('err-yo', d.error); return; }
+    renderYtOpt(d);
+  } catch(e) { showErr('err-yo','서버 오류: '+e.message); }
+  finally { document.getElementById('yo-btn').disabled = false; }
+}
+
+function renderYtOpt(d) {
+  document.getElementById('yo-results').style.display = 'block';
+
+  // 참고 영상
+  if (d.refs && d.refs.length) {
+    document.getElementById('yo-refs-card').style.display = 'block';
+    document.getElementById('yo-refs-count').textContent = `${d.refs.length}개 참고`;
+    const list = document.getElementById('yo-refs-list');
+    list.innerHTML = '';
+    d.refs.forEach(r => {
+      const div = document.createElement('div');
+      div.style.cssText = 'font-size:11px;color:var(--m2);padding:4px 0;border-bottom:1px solid var(--b1);display:flex;gap:8px;align-items:center';
+      div.innerHTML = `<span style="color:var(--a2)">▶</span><a href="https://youtube.com/watch?v=${esc(r.id)}" target="_blank" style="color:var(--m2);text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.title)}">${esc(r.title)}</a><span style="color:var(--m1);flex-shrink:0">${r.views||''}</span>`;
+      list.appendChild(div);
+    });
+  }
+
+  // 추천 제목
+  if (d.titles && d.titles.length) {
+    document.getElementById('yo-titles-card').style.display = 'block';
+    const list = document.getElementById('yo-titles-list');
+    list.innerHTML = '';
+    d.titles.forEach(t => {
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--s2);border-radius:5px;font-size:13px;gap:8px';
+      div.innerHTML = `<span style="flex:1">${esc(t)}</span><button class="cp" onclick="cpText('${esc(t).replace(/'/g,"&#39;")}',this)">복사</button>`;
+      list.appendChild(div);
+    });
+  }
+
+  // 설명
+  if (d.description) {
+    document.getElementById('yo-desc-card').style.display = 'block';
+    document.getElementById('yo-desc-txt').textContent = d.description;
+  }
+
+  // 태그
+  if (d.tags && d.tags.length) {
+    document.getElementById('yo-tags-card').style.display = 'block';
+    document.getElementById('yo-tags-txt').textContent = d.tags.join(', ');
+  }
+
+  // 해시태그
+  if (d.hashtags && d.hashtags.length) {
+    document.getElementById('yo-hashtags-card').style.display = 'block';
+    document.getElementById('yo-hashtags-txt').textContent = d.hashtags.join(' ');
+  }
+
+  // 고정 댓글
+  if (d.comment) {
+    document.getElementById('yo-comment-card').style.display = 'block';
+    document.getElementById('yo-comment-txt').textContent = d.comment;
+  }
+}
+
+function copyTimestamp(btn){navigator.clipboard.writeText(document.getElementById('timestamp-txt').textContent).then(()=>{btn.textContent='복사됨 ✓';btn.classList.add('ok');setTimeout(()=>{btn.textContent='복사';btn.classList.remove('ok')},1800)});}
+function dlFile(f){const a=document.createElement('a');a.href=`/api/yt/download-file/${encodeURIComponent(f)}`;a.download=f;document.body.appendChild(a);a.click();document.body.removeChild(a);}
+
+function savePlaylist(){
+  if(!trackData.length)return;
+  const name=prompt('플레이리스트 이름:','내 플레이리스트')||'playlist';
+  const b=new Blob([JSON.stringify({name,tracks:trackData},null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name.replace(/[^a-zA-Z0-9가-힣]/g,'_')+'.json';a.click();
+}
+function loadPlaylist(inp){
+  const f=inp.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{try{const d=JSON.parse(e.target.result);const loaded=d.tracks||[];const n=loaded.filter(t=>!isDupe(t));trackData=[...trackData,...n];recalc();renderTracks();}catch(e){alert('파일 읽기 실패');}};
+  r.readAsText(f);inp.value='';
+}
+
+// ── 프롬프트 생성 ─────────────────────────────────────────────
+async function genPrompts(){
+  showErr('err-pr','');
+  document.getElementById('pr-btn').disabled=true;
+  document.getElementById('prog-pr').style.display='block';
+  document.getElementById('prompt-result').style.display='none';
+  try{
+    const r=await fetch('/api/prompts/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({genre:document.getElementById('pr-genre').value,mood:document.getElementById('pr-mood').value,keywords:document.getElementById('pr-kw').value,style:document.getElementById('pr-style').value})});
+    const d=await r.json();
+    document.getElementById('prog-pr').style.display='none';
+    if(!d.success){showErr('err-pr',d.error);return;}
+    document.getElementById('pc-mj').textContent=d.prompts.midjourney||'';
+    document.getElementById('pc-sn').textContent=d.prompts.suno_tags||'';
+    document.getElementById('pc-cc').textContent=d.prompts.capcut||'';
+    document.getElementById('prompt-result').style.display='grid';
+  }catch(e){showErr('err-pr','서버 오류: '+e.message);}
+  finally{document.getElementById('pr-btn').disabled=false;}
+}
+
+// ── 장면 프롬프트 ─────────────────────────────────────────────
+function setStyle(btn,val){document.getElementById('sc-style').value=val;document.querySelectorAll('.sc-style-chips .chip').forEach(b=>b.classList.remove('sel'));btn.classList.add('sel');}
+
+async function genScenes(){
+  const lyrics=document.getElementById('sc-lyrics').value.trim();
+  if(!lyrics){showErr('err-sc','가사를 입력해주세요');return;}
+  showErr('err-sc','');
+  document.getElementById('sc-btn').disabled=true;
+  document.getElementById('prog-sc').style.display='block';
+  document.getElementById('scenes-result').style.display='none';
+  try{
+    const r=await fetch('/api/prompts/scenes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lyrics,style:document.getElementById('sc-style').value})});
+    const d=await r.json();
+    document.getElementById('prog-sc').style.display='none';
+    if(!d.success){showErr('err-sc',d.error);return;}
+    scenesData=d.scenes||[];
+    const list=document.getElementById('scenes-list');
+    list.innerHTML='';
+    scenesData.forEach((s,i)=>{
+      const div=document.createElement('div');
+      div.style.cssText='background:var(--s2);border:1px solid var(--b1);border-radius:7px;padding:.875rem';
+      div.innerHTML=`<div style="display:flex;align-items:center;gap:7px;margin-bottom:7px"><span style="font-family:var(--mono);font-size:10px;color:var(--a1);background:var(--a1d);padding:2px 7px;border-radius:20px">Scene ${s.index}</span><span style="font-size:11px;color:var(--m2);font-style:italic">${esc(s.lyric||'')}</span></div><div style="font-size:12px;color:var(--tx);line-height:1.6;margin-bottom:7px" id="sc-txt-${i}">${esc(s.prompt||'')}</div><button class="cp" onclick="cpEl('sc-txt-${i}',this)">복사</button>`;
+      list.appendChild(div);
+    });
+    document.getElementById('scenes-result').style.display='block';
+  }catch(e){showErr('err-sc','서버 오류: '+e.message);}
+  finally{document.getElementById('sc-btn').disabled=false;}
+}
+
+function copyAllScenes(btn){
+  const text=scenesData.map(s=>`[Scene ${s.index}] ${s.lyric}\n${s.prompt}`).join('\n\n');
+  navigator.clipboard.writeText(text).then(()=>{btn.textContent='복사됨 ✓';btn.classList.add('ok');setTimeout(()=>{btn.textContent='전체 복사';btn.classList.remove('ok')},1800)});
+}
+
+// ── 폰트 변환기 ───────────────────────────────────────────────
+const FG={
+  math:[
+    ['굵은 세리프',s=>ftr(s,{u:0x1D400,l:0x1D41A,n:0x1D7CE})],
+    ['이탤릭',s=>[...s].map(c=>{const n=c.charCodeAt(0);if(n>=65&&n<=90)return String.fromCodePoint(n-65+0x1D434);if(n>=97&&n<=122)return c==='h'?'\u210E':String.fromCodePoint(n-97+0x1D44E);return c}).join('')],
+    ['굵은 이탤릭',s=>ftr(s,{u:0x1D468,l:0x1D482})],
+    ['커시브',s=>ftrMap(s,{A:'\u{1D49C}',B:'\u{212C}',C:'\u{1D49E}',D:'\u{1D49F}',E:'\u{2130}',F:'\u{2131}',G:'\u{1D4A2}',H:'\u{210B}',I:'\u{2110}',J:'\u{1D4A5}',K:'\u{1D4A6}',L:'\u{2112}',M:'\u{2133}',N:'\u{1D4A9}',O:'\u{1D4AA}',P:'\u{1D4AB}',Q:'\u{1D4AC}',R:'\u{211B}',S:'\u{1D4AE}',T:'\u{1D4AF}',U:'\u{1D4B0}',V:'\u{1D4B1}',W:'\u{1D4B2}',X:'\u{1D4B3}',Y:'\u{1D4B4}',Z:'\u{1D4B5}',a:'\u{1D4B6}',b:'\u{1D4B7}',c:'\u{1D4B8}',d:'\u{1D4B9}',e:'\u{212F}',f:'\u{1D4BB}',g:'\u{210A}',h:'\u{1D4BD}',i:'\u{1D4BE}',j:'\u{1D4BF}',k:'\u{1D4C0}',l:'\u{1D4C1}',m:'\u{1D4C2}',n:'\u{1D4C3}',o:'\u{2134}',p:'\u{1D4C5}',q:'\u{1D4C6}',r:'\u{1D4C7}',s:'\u{1D4C8}',t:'\u{1D4C9}',u:'\u{1D4CA}',v:'\u{1D4CB}',w:'\u{1D4CC}',x:'\u{1D4CD}',y:'\u{1D4CE}',z:'\u{1D4CF}'})],
+    ['굵은 커시브',s=>ftr(s,{u:0x1D4D0,l:0x1D4EA})],
+    ['고딕',s=>[...s].map(c=>{const ex={C:'\u212D',H:'\u210C',I:'\u2111',R:'\u211C',Z:'\u2128'};if(ex[c])return ex[c];const n=c.charCodeAt(0);if(n>=65&&n<=90)return String.fromCodePoint(n-65+0x1D504);if(n>=97&&n<=122)return String.fromCodePoint(n-97+0x1D51E);return c}).join('')],
+    ['굵은 고딕',s=>ftr(s,{u:0x1D56C,l:0x1D586})],
+    ['더블 스트럭',s=>ftrMap(s,{A:'\u{1D538}',B:'\u{1D539}',C:'\u{2102}',D:'\u{1D53B}',E:'\u{1D53C}',F:'\u{1D53D}',G:'\u{1D53E}',H:'\u{210D}',I:'\u{1D540}',J:'\u{1D541}',K:'\u{1D542}',L:'\u{1D543}',M:'\u{1D544}',N:'\u{2115}',O:'\u{1D546}',P:'\u{2119}',Q:'\u{211A}',R:'\u{211D}',S:'\u{1D54A}',T:'\u{1D54B}',U:'\u{1D54C}',V:'\u{1D54D}',W:'\u{1D54E}',X:'\u{1D54F}',Y:'\u{1D550}',Z:'\u{2124}',a:'\u{1D552}',b:'\u{1D553}',c:'\u{1D554}',d:'\u{1D555}',e:'\u{1D556}',f:'\u{1D557}',g:'\u{1D558}',h:'\u{1D559}',i:'\u{1D55A}',j:'\u{1D55B}',k:'\u{1D55C}',l:'\u{1D55D}',m:'\u{1D55E}',n:'\u{1D55F}',o:'\u{1D560}',p:'\u{1D561}',q:'\u{1D562}',r:'\u{1D563}',s:'\u{1D564}',t:'\u{1D565}',u:'\u{1D566}',v:'\u{1D567}',w:'\u{1D568}',x:'\u{1D569}',y:'\u{1D56A}',z:'\u{1D56B}','0':'\u{1D7D8}','1':'\u{1D7D9}','2':'\u{1D7DA}','3':'\u{1D7DB}','4':'\u{1D7DC}','5':'\u{1D7DD}','6':'\u{1D7DE}','7':'\u{1D7DF}','8':'\u{1D7E0}','9':'\u{1D7E1}'})],
+    ['모노스페이스',s=>ftr(s,{u:0x1D670,l:0x1D68A,n:0x1D7F6})],
+    ['굵은 산세리프',s=>ftr(s,{u:0x1D5D4,l:0x1D5EE,n:0x1D7EC})],
+    ['스몰캡스',s=>[...s].map(c=>({A:'ᴀ',B:'ʙ',C:'ᴄ',D:'ᴅ',E:'ᴇ',F:'ꜰ',G:'ɢ',H:'ʜ',I:'ɪ',J:'ᴊ',K:'ᴋ',L:'ʟ',M:'ᴍ',N:'ɴ',O:'ᴏ',P:'ᴘ',Q:'Q',R:'ʀ',S:'s',T:'ᴛ',U:'ᴜ',V:'ᴠ',W:'ᴡ',X:'x',Y:'ʏ',Z:'ᴢ'}[c.toUpperCase()]||c)).join('')],
+  ],
+  bubble:[
+    ['버블 텍스트',s=>[...s].map(c=>{const u=c.toUpperCase(),ui='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.indexOf(u),li='abcdefghijklmnopqrstuvwxyz'.indexOf(c);if(ui>=0)return String.fromCodePoint(0x24B6+ui);if(li>=0)return String.fromCodePoint(0x24D0+li);if(c>='0'&&c<='9')return String.fromCodePoint(0x245F+parseInt(c));return c}).join('')],
+    ['블랙 버블',s=>[...s].map(c=>{const n=c.toUpperCase().charCodeAt(0);if(n>=65&&n<=90)return String.fromCodePoint(0x1F150+n-65);return c}).join('')],
+    ['스퀘어',s=>[...s].map(c=>{const n=c.toUpperCase().charCodeAt(0);if(n>=65&&n<=90)return String.fromCodePoint(0x1F130+n-65);return c}).join('')],
+    ['베이퍼웨이브',s=>[...s].map(c=>c.charCodeAt(0)>=33&&c.charCodeAt(0)<=126?String.fromCodePoint(c.charCodeAt(0)+0xFEE0):c===' '?'\u3000':c).join('')],
+  ],
+  deco:[
+    ['취소선',s=>[...s].map(c=>c+'\u0336').join('')],
+    ['밑줄',s=>[...s].map(c=>c+'\u0332').join('')],
+    ['거꾸로',s=>[...s.split('').reverse()].map(c=>({a:'\u0250',b:'q',d:'p',e:'\u01DD',h:'\u0265',i:'\u0131',m:'m',n:'u',o:'o',r:'\u0279',s:'s',t:'\u0287',u:'n',v:'v',w:'\u028D'}[c]||c)).join('')],
+    ['별 장식',s=>'\u2605 '+s+' \u2605'],
+    ['음표 장식',s=>'\u266B '+s+' \u266C'],
+    ['프레임',s=>'\u300C '+s+' \u300D'],
+    ['하트 장식',s=>'\u2665 '+s+' \u2665'],
+    ['화살표 장식',s=>'\u00BB '+s+' \u00AB'],
+    ['스퀴글',s=>[...s].map(c=>c+'\u0330').join('')],
+  ],
+};
+function ftr(s,m){return[...s].map(c=>{const n=c.charCodeAt(0);if(m.u&&n>=65&&n<=90)return String.fromCodePoint(n-65+m.u);if(m.l&&n>=97&&n<=122)return String.fromCodePoint(n-97+m.l);if(m.n&&n>=48&&n<=57)return String.fromCodePoint(n-48+m.n);return c}).join('')}
+function ftrMap(s,m){return[...s].map(c=>m[c]||c).join('')}
+
+function renderFonts(text){
+  document.getElementById('font-empty').style.display=text?'none':'block';
+  document.getElementById('font-output').style.display=text?'block':'none';
+  if(!text)return;
+  ['math','bubble','deco'].forEach(g=>{
+    document.getElementById('fg-'+g).innerHTML=FG[g].map(([name,fn])=>{
+      let out='';try{out=fn(text)}catch(e){out=text}
+      const safe=out.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      return `<div class="fc" onclick="cpFont('${safe}',this)"><span class="fc-name">${name}</span><span class="fc-preview">${safe}</span><span class="cp" style="font-size:10px;padding:3px 8px">복사</span></div>`;
+    }).join('');
+  });
+}
+
+// ── 자막 싱크 생성기 ─────────────────────────────────────────
+let srtEntries = []; // [{index, start, end, text}]
+
+const SUB_LANGS = [
+  {code:'ko',name:'한국어',flag:'🇰🇷'},
+  {code:'ja',name:'日本語',flag:'🇯🇵'},
+  {code:'zh',name:'中文(繁體)',flag:'🇹🇼'},
+  {code:'pt',name:'Português',flag:'🇧🇷'},
+  {code:'es',name:'Español',flag:'🇪🇸'},
+  {code:'vi',name:'Tiếng Việt',flag:'🇻🇳'},
+  {code:'de',name:'Deutsch',flag:'🇩🇪'},
+  {code:'it',name:'Italiano',flag:'🇮🇹'},
+  {code:'nl',name:'Nederlands',flag:'🇳🇱'},
+  {code:'sv',name:'Svenska',flag:'🇸🇪'},
+];
+
+function srtDrop(e) {
+  e.preventDefault();
+  document.getElementById('srt-drop').style.borderColor = 'var(--b2)';
+  const file = e.dataTransfer.files[0];
+  if (file) parseSrtFile(file);
+}
+
+function loadSrt(input) {
+  const file = input.files[0];
+  if (file) parseSrtFile(file);
+  input.value = '';
+}
+
+function parseSrtFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (ext === 'srt') srtEntries = parseSRT(text);
+    else if (ext === 'sbv') srtEntries = parseSBV(text);
+    else if (ext === 'vtt') srtEntries = parseVTT(text);
+    else { showErr('err-srt','지원하지 않는 형식입니다. SRT, SBV, VTT만 가능합니다.'); return; }
+
+    if (!srtEntries.length) { showErr('err-srt','자막 항목을 찾을 수 없습니다.'); return; }
+
+    document.getElementById('srt-filename').textContent = file.name;
+    document.getElementById('srt-count').textContent = `자막 ${srtEntries.length}개`;
+    document.getElementById('srt-line-count').textContent = srtEntries.length;
+    document.getElementById('srt-info').style.display = 'block';
+    document.getElementById('srt-langs-card').style.display = 'block';
+    document.getElementById('srt-generate-wrap').style.display = 'block';
+    buildLangInputs();
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function parseSRT(text) {
+  const entries = [];
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n'); // CRLF → LF 정규화
+  // 공백만 있는 줄을 완전히 빈 줄로 정규화한 뒤 블록 분리
+  text = text.replace(/\n[ \t]+\n/g, '\n\n');
+  const blocks = (text.trim() + '\n\n').split(/\n\n+/);
+  blocks.forEach(block => {
+    const lines = block.trim().split('\n');
+    if (lines.length < 2) return;
+    // 첫 줄이 숫자(인덱스)인지 확인
+    const hasIndex = /^\d+$/.test(lines[0].trim());
+    const timeLine = hasIndex ? lines[1] : lines[0];
+    const textStart = hasIndex ? 2 : 1;
+    const timeMatch = timeLine.match(/(\d{2}:\d{2}:\d{2}[,.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,.]\d{3})/);
+    if (!timeMatch) return;
+    entries.push({
+      index: hasIndex ? parseInt(lines[0]) : entries.length + 1,
+      start: timeMatch[1].replace('.', ','),
+      end: timeMatch[2].replace('.', ','),
+      text: lines.slice(textStart).join('\n').trim()
+    });
+  });
+  return entries;
+}
+
+function parseSBV(text) {
+  const entries = [];
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n'); // CRLF → LF 정규화
+
+  const toSrt = t => {
+    const parts = t.split(':');
+    const h = parts.length === 3 ? parts[0] : '0';
+    const m = parts.length === 3 ? parts[1] : parts[0];
+    const s = parts[parts.length-1].replace('.', ',');
+    return `${h.padStart(2,'0')}:${m.padStart(2,'0')}:${s}`;
+  };
+  const isTime = s => /^\d+:\d{2}:\d{2}\.\d{3},\d+:\d{2}:\d{2}\.\d{3}$/.test(s.trim());
+
+  // 줄 단위로 파싱 (블록 분리 방식 대신)
+  const lines = text.split('\n');
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    if (isTime(line)) {
+      const timeMatch = line.match(/(\d+:\d{2}:\d{2}\.\d{3}),(\d+:\d{2}:\d{2}\.\d{3})/);
+      // 다음 비어있지 않은 줄을 텍스트로 수집
+      const textLines = [];
+      i++;
+      while (i < lines.length && !isTime(lines[i].trim())) {
+        if (lines[i].trim()) textLines.push(lines[i].trim());
+        i++;
+      }
+      if (timeMatch) {
+        entries.push({
+          index: entries.length + 1,
+          start: toSrt(timeMatch[1]),
+          end: toSrt(timeMatch[2]),
+          text: textLines.join('\n')
+        });
+      }
+    } else {
+      i++;
+    }
+  }
+  return entries;
+}
+
+function parseVTT(text) {
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n'); // CRLF → LF 정규화
+  const lines = text.split('\n');
+  const entries = [];
+  let i = 0, idx = 1;
+  while (i < lines.length) {
+    const timeMatch = lines[i].match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/);
+    if (timeMatch) {
+      const start = timeMatch[1].replace('.', ',');
+      const end = timeMatch[2].replace('.', ',');
+      const textLines = [];
+      i++;
+      while (i < lines.length && lines[i].trim() !== '') {
+        textLines.push(lines[i]);
+        i++;
+      }
+      if (textLines.length) entries.push({index:idx++, start, end, text:textLines.join('\n')});
+    } else { i++; }
+  }
+  return entries;
+}
+
+function buildLangInputs() {
+  const container = document.getElementById('srt-lang-inputs');
+  container.innerHTML = '';
+  SUB_LANGS.forEach(l => {
+    const div = document.createElement('div');
+    div.style.marginBottom = '.875rem';
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+        <label style="font-size:12px;color:var(--m2)">${l.flag} ${l.name}</label>
+        <span id="sub-count-${l.code}" style="font-size:11px;color:var(--m2)"></span>
+      </div>
+      <textarea id="sub-ta-${l.code}"
+        style="width:100%;min-height:90px;padding:9px 11px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx);font-size:12px;line-height:1.6;resize:vertical;font-family:var(--sans)"
+        placeholder="${l.name} 번역 가사를 붙여넣으세요... (${srtEntries.length}줄 필요)"
+        oninput="checkLineCount('${l.code}')"></textarea>`;
+    container.appendChild(div);
+  });
+}
+
+function checkLineCount(code) {
+  const ta = document.getElementById('sub-ta-'+code);
+  const cnt = document.getElementById('sub-count-'+code);
+  if (!ta || !cnt) return;
+  const lines = ta.value.split('\n').filter(l => l.trim());
+  const needed = srtEntries.length;
+  cnt.textContent = `${lines.length} / ${needed}줄`;
+  cnt.style.color = lines.length === needed ? 'var(--a3)' : lines.length > 0 ? 'var(--a4)' : 'var(--m2)';
+}
+
+// 불러오기 함수들
+function loadFromLyricsStore() {
+  if (!lyricsStore || !Object.keys(lyricsStore).length) {
+    alert('가사 생성기에서 먼저 가사를 생성해주세요.');
+    return;
+  }
+  fillSubLangInputs(lyricsStore);
+}
+
+function loadFromTrStore() {
+  const store = window._trStore;
+  if (!store || !Object.keys(store).length) {
+    alert('가사 번역 탭에서 먼저 번역을 실행해주세요.');
+    return;
+  }
+  fillSubLangInputs(store);
+}
+
+function fillSubLangInputs(store) {
+  // lang-inputs가 없으면 먼저 생성
+  if (!document.getElementById('sub-ta-ko')) buildLangInputs();
+
+  let filled = 0;
+  SUB_LANGS.forEach(l => {
+    const ta = document.getElementById('sub-ta-'+l.code);
+    if (!ta) return;
+    // lyricsStore: {ko:[{title,lyrics},...]} 또는 trStore: {ko:'가사텍스트'}
+    let text = '';
+    if (store[l.code]) {
+      if (typeof store[l.code] === 'string') {
+        text = store[l.code];
+      } else if (Array.isArray(store[l.code]) && store[l.code][0]) {
+        text = store[l.code][0].lyrics || '';
+      }
+    }
+    if (text) {
+      // [Verse], [Chorus], [Bridge] 등 파트 구문 제거
+      text = text.replace(/\[.*?\]\n?/g, '').replace(/\n{3,}/g, '\n\n').trim();
+      ta.value = text;
+      checkLineCount(l.code);
+      filled++;
+    }
+  });
+
+  const hint = document.getElementById('subsync-loaded-hint');
+  if (hint) hint.textContent = `${filled}개 언어 불러옴 ✓`;
+  document.getElementById('srt-langs-card').style.display = 'block';
+  document.getElementById('srt-generate-wrap').style.display = 'block';
+}
+
+// AI 줄 재배분 함수
+async function redistributeLines(lyrics, targetCount) {
+  // 줄 수가 이미 맞으면 그대로
+  const lines = lyrics.split('\n').filter(l => l.trim());
+  if (lines.length === targetCount) return lines;
+
+  // Claude에게 재배분 요청
+  try {
+    const res = await fetch('/api/subtitle/redistribute', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({lyrics, target_count: targetCount})
+    });
+    const d = await res.json();
+    if (d.success && d.lines) return d.lines;
+  } catch(e) { console.error(e); }
+
+  // 폴백: 단순 균등 분할
+  return simpleRedistribute(lines, targetCount);
+}
+
+function simpleRedistribute(lines, targetCount) {
+  if (lines.length === targetCount) return lines;
+  if (lines.length > targetCount) {
+    // 줄 합치기
+    const result = [];
+    const ratio = lines.length / targetCount;
+    for (let i = 0; i < targetCount; i++) {
+      const start = Math.round(i * ratio);
+      const end = Math.round((i+1) * ratio);
+      result.push(lines.slice(start, end).join(' '));
+    }
+    return result;
+  } else {
+    // 줄 늘리기 - 긴 줄 분리
+    const result = [...lines];
+    while (result.length < targetCount) {
+      let maxLen = 0, maxIdx = 0;
+      result.forEach((l,i) => { if(l.length > maxLen){maxLen=l.length;maxIdx=i;} });
+      const words = result[maxIdx].split(' ');
+      const mid = Math.floor(words.length / 2);
+      result.splice(maxIdx, 1, words.slice(0,mid).join(' '), words.slice(mid).join(' '));
+    }
+    return result.slice(0, targetCount);
+  }
+}
+
+async function makeSRT(lang) {
+  const ta = document.getElementById('sub-ta-'+lang);
+  if (!ta || !ta.value.trim()) return null;
+
+  const rawLines = ta.value.split('\n').filter(l => l.trim());
+  let lines = rawLines;
+
+  // 줄 수 불일치 시 AI 재배분
+  if (rawLines.length !== srtEntries.length) {
+    const btn = document.getElementById('srt-gen-btn');
+    if (btn) btn.textContent = `${lang} 줄 재배분 중...`;
+    lines = await redistributeLines(ta.value, srtEntries.length);
+  }
+
+  if (lines.length !== srtEntries.length) {
+    // 최후 폴백
+    lines = simpleRedistribute(lines, srtEntries.length);
+  }
+
+  const blocks = srtEntries.map((e, i) => `${e.index}\n${e.start} --> ${e.end}\n${lines[i]||''}`);
+  return blocks.join('\n\n') + '\n';
+}
+
+async function generateSrt() {
+  showErr('err-srt','');
+  if (!srtEntries.length) { showErr('err-srt','SRT 파일을 먼저 업로드해주세요.'); return; }
+
+  const btn = event.target;
+  btn.id = 'srt-gen-btn';
+  btn.disabled = true;
+  btn.textContent = '생성 중...';
+
+  const results = [];
+
+  for (const l of SUB_LANGS) {
+    const ta = document.getElementById('sub-ta-'+l.code);
+    if (!ta || !ta.value.trim()) continue;
+    btn.textContent = `${l.name} 처리 중...`;
+    const content = await makeSRT(l.code);
+    if (content) results.push({lang: l, content});
+  }
+
+  btn.disabled = false;
+  btn.textContent = '⬇ 자막 파일 생성 및 다운로드';
+
+  if (!results.length) { showErr('err-srt','번역 가사를 하나 이상 입력해주세요.'); return; }
+
+  // 다운로드 링크 생성
+  const dlList = document.getElementById('srt-download-list');
+  dlList.innerHTML = '';
+  document.getElementById('srt-results').style.display = 'block';
+
+  results.forEach(({lang, content}) => {
+    const blob = new Blob([content], {type:'text/plain;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const filename = `subtitle_${lang.code}.srt`;
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:7px';
+    div.innerHTML = `
+      <span style="font-size:13px">${lang.flag} ${lang.name}</span>
+      <a href="${url}" download="${filename}" style="text-decoration:none;font-family:var(--mono);font-size:11px;padding:5px 11px;border:1px solid var(--b2);border-radius:6px;color:var(--tx);background:var(--s2)">↓ ${filename}</a>`;
+    dlList.appendChild(div);
+  });
+}
+
+// ── YouTube 아이콘 모음 ─────────────────────────────────────
+const ICON_DATA = [
+  { cat:'😀 얼굴 / 감정', icons:[
+    {i:'😀',k:'웃음'},{i:'😁',k:'활짝웃음'},{i:'😂',k:'눈물웃음'},{i:'🤣',k:'데굴데굴'},{i:'😃',k:'큰눈웃음'},{i:'😄',k:'눈웃음'},
+    {i:'😅',k:'식은땀웃음'},{i:'😆',k:'눈감고웃음'},{i:'😉',k:'윙크'},{i:'😊',k:'볼빨간웃음'},{i:'😋',k:'냠냠'},{i:'😎',k:'선글라스'},
+    {i:'😍',k:'하트눈'},{i:'🥰',k:'사랑스러움'},{i:'😘',k:'키스'},{i:'😗',k:'뽀뽀'},{i:'🙂',k:'살짝웃음'},{i:'🤗',k:'안아줘'},
+    {i:'🤭',k:'입막음'},{i:'🤫',k:'쉿'},{i:'🤔',k:'생각중'},{i:'😐',k:'무표정'},{i:'😑',k:'멍'},{i:'😶',k:'말없음'},
+    {i:'😏',k:'능글맞음'},{i:'😒',k:'불만'},{i:'🙄',k:'눈동자굴리기'},{i:'😬',k:'이악물기'},{i:'😌',k:'안도'},{i:'😔',k:'풀죽음'},
+    {i:'😪',k:'졸림'},{i:'🤤',k:'군침'},{i:'😴',k:'수면'},{i:'😷',k:'마스크'},{i:'🤒',k:'아픔'},{i:'🤕',k:'머리부상'},
+    {i:'🤢',k:'메스꺼움'},{i:'🤮',k:'토할것같음'},{i:'🤧',k:'재채기'},{i:'🥵',k:'더위'},{i:'🥶',k:'추위'},{i:'🥴',k:'취함'},
+    {i:'😵',k:'어지러움'},{i:'🤯',k:'머리폭발'},{i:'🤠',k:'카우보이'},{i:'🥳',k:'파티'},{i:'🤓',k:'공부벌레'},{i:'🧐',k:'모노클'},
+    {i:'😕',k:'혼란'},{i:'😟',k:'걱정'},{i:'🙁',k:'조금슬픔'},{i:'😮',k:'놀람'},{i:'😲',k:'충격'},{i:'😳',k:'당황'},
+    {i:'🥺',k:'애교'},{i:'😦',k:'실망'},{i:'😨',k:'공포'},{i:'😰',k:'식은땀'},{i:'😢',k:'울음'},{i:'😭',k:'엉엉'},
+    {i:'😱',k:'비명'},{i:'😖',k:'괴로움'},{i:'😩',k:'지침'},{i:'😫',k:'피곤'},{i:'🥱',k:'하품'},{i:'😤',k:'콧김'},
+    {i:'😠',k:'화남'},{i:'😡',k:'분노'},{i:'🤬',k:'욕설'},{i:'😈',k:'악마웃음'},{i:'👿',k:'악마화남'},{i:'💀',k:'해골'},
+    {i:'☠',k:'해골뼈'},{i:'💩',k:'똥'},{i:'🤡',k:'광대'},{i:'👹',k:'도깨비'},{i:'👺',k:'텐구'},{i:'👻',k:'유령'},
+    {i:'👽',k:'외계인'},{i:'👾',k:'외계인몬스터'},{i:'🤖',k:'로봇'},
+  ]},
+  { cat:'👋 손 / 몸짓', icons:[
+    {i:'👋',k:'손흔들기'},{i:'🤚',k:'손들기'},{i:'🖐',k:'다섯손가락'},{i:'✋',k:'하이파이브'},{i:'🖖',k:'브이'},
+    {i:'👌',k:'오케이'},{i:'🤌',k:'손가락모음'},{i:'✌',k:'브이'},{i:'🤞',k:'행운'},{i:'🤟',k:'사랑해'},{i:'🤘',k:'록'},
+    {i:'🤙',k:'전화해'},{i:'👈',k:'왼쪽'},{i:'👉',k:'오른쪽'},{i:'👆',k:'위'},{i:'👇',k:'아래'},{i:'☝',k:'검지'},
+    {i:'👍',k:'좋아요'},{i:'👎',k:'싫어요'},{i:'✊',k:'주먹'},{i:'👊',k:'주먹치기'},{i:'🤛',k:'왼주먹'},{i:'🤜',k:'오른주먹'},
+    {i:'👏',k:'박수'},{i:'🙌',k:'만세'},{i:'👐',k:'양손벌림'},{i:'🤲',k:'두손모음'},{i:'🤝',k:'악수'},{i:'🙏',k:'기도'},
+    {i:'✍',k:'글쓰기'},{i:'💅',k:'네일아트'},{i:'🤳',k:'셀카'},{i:'💪',k:'근육'},{i:'👀',k:'눈'},{i:'👁',k:'눈하나'},
+    {i:'👅',k:'혀'},{i:'👄',k:'입술'},{i:'🫶',k:'하트손'},
+  ]},
+  { cat:'❤️ 하트 / 사랑', icons:[
+    {i:'❤',k:'빨간하트'},{i:'🧡',k:'주황하트'},{i:'💛',k:'노란하트'},{i:'💚',k:'초록하트'},{i:'💙',k:'파란하트'},
+    {i:'💜',k:'보라하트'},{i:'🖤',k:'검은하트'},{i:'🤍',k:'흰하트'},{i:'🤎',k:'갈색하트'},{i:'💔',k:'깨진하트'},
+    {i:'❣',k:'느낌표하트'},{i:'💕',k:'두하트'},{i:'💞',k:'회전하트'},{i:'💓',k:'뛰는하트'},{i:'💗',k:'성장하트'},
+    {i:'💖',k:'반짝하트'},{i:'💘',k:'화살하트'},{i:'💝',k:'리본하트'},{i:'❤‍🔥',k:'불하트'},{i:'❤‍🩹',k:'치유하트'},
+    {i:'💌',k:'하트편지'},{i:'💋',k:'키스자국'},{i:'💟',k:'하트장식'},
+  ]},
+  { cat:'🎵 음악 / 엔터', icons:[
+    {i:'🎵',k:'음표'},{i:'🎶',k:'두음표'},{i:'🎼',k:'악보'},{i:'🎤',k:'마이크'},{i:'🎧',k:'헤드폰'},{i:'🎷',k:'색소폰'},
+    {i:'🎸',k:'기타'},{i:'🎹',k:'피아노'},{i:'🎺',k:'트럼펫'},{i:'🎻',k:'바이올린'},{i:'🥁',k:'드럼'},{i:'🪘',k:'콩가'},
+    {i:'🪗',k:'아코디언'},{i:'🎙',k:'스튜디오마이크'},{i:'📻',k:'라디오'},{i:'🎚',k:'페이더'},{i:'🎛',k:'믹서'},
+    {i:'🎬',k:'클래퍼보드'},{i:'🎭',k:'연극'},{i:'🎨',k:'팔레트'},{i:'🎲',k:'주사위'},{i:'🎯',k:'다트'},
+    {i:'🎮',k:'게임패드'},{i:'🕹',k:'조이스틱'},{i:'🏆',k:'트로피'},{i:'🥇',k:'금메달'},{i:'🥈',k:'은메달'},{i:'🥉',k:'동메달'},
+    {i:'🎊',k:'색종이'},{i:'🎉',k:'파티폭죽'},{i:'🎈',k:'풍선'},{i:'🎀',k:'리본'},{i:'🎁',k:'선물'},
+  ]},
+  { cat:'🐶 동물 / 자연', icons:[
+    {i:'🐶',k:'강아지'},{i:'🐱',k:'고양이'},{i:'🐭',k:'쥐'},{i:'🐹',k:'햄스터'},{i:'🐰',k:'토끼'},{i:'🦊',k:'여우'},
+    {i:'🐻',k:'곰'},{i:'🐼',k:'판다'},{i:'🐨',k:'코알라'},{i:'🐯',k:'호랑이'},{i:'🦁',k:'사자'},{i:'🐮',k:'소'},
+    {i:'🐷',k:'돼지'},{i:'🐸',k:'개구리'},{i:'🐵',k:'원숭이'},{i:'🐔',k:'닭'},{i:'🐧',k:'펭귄'},{i:'🦆',k:'오리'},
+    {i:'🦅',k:'독수리'},{i:'🦉',k:'부엉이'},{i:'🦇',k:'박쥐'},{i:'🐺',k:'늑대'},{i:'🦄',k:'유니콘'},{i:'🐝',k:'벌'},
+    {i:'🦋',k:'나비'},{i:'🐞',k:'무당벌레'},{i:'🌸',k:'벚꽃'},{i:'💐',k:'꽃다발'},{i:'🌹',k:'장미'},{i:'🌻',k:'해바라기'},
+    {i:'🌼',k:'꽃'},{i:'🌷',k:'튤립'},{i:'🌱',k:'새싹'},{i:'🌿',k:'허브잎'},{i:'☘',k:'클로버'},{i:'🍀',k:'네잎클로버'},
+    {i:'🍁',k:'단풍잎'},{i:'🍂',k:'낙엽'},{i:'🍃',k:'잎'},{i:'🌴',k:'야자수'},{i:'🌲',k:'나무'},{i:'🌵',k:'선인장'},
+  ]},
+  { cat:'🍎 음식 / 음료', icons:[
+    {i:'🍎',k:'사과'},{i:'🍊',k:'오렌지'},{i:'🍋',k:'레몬'},{i:'🍇',k:'포도'},{i:'🍓',k:'딸기'},{i:'🍒',k:'체리'},
+    {i:'🍑',k:'복숭아'},{i:'🍌',k:'바나나'},{i:'🍉',k:'수박'},{i:'🥝',k:'키위'},{i:'🍅',k:'토마토'},{i:'🌽',k:'옥수수'},
+    {i:'🥦',k:'브로콜리'},{i:'🥕',k:'당근'},{i:'🥑',k:'아보카도'},{i:'🍔',k:'햄버거'},{i:'🍟',k:'감자튀김'},{i:'🍕',k:'피자'},
+    {i:'🌮',k:'타코'},{i:'🍜',k:'라면'},{i:'🍝',k:'파스타'},{i:'🍣',k:'초밥'},{i:'🍱',k:'도시락'},{i:'🍛',k:'카레'},
+    {i:'🍦',k:'소프트아이스크림'},{i:'🍰',k:'케이크'},{i:'🎂',k:'생일케이크'},{i:'🍩',k:'도넛'},{i:'🍪',k:'쿠키'},
+    {i:'🍫',k:'초콜릿'},{i:'☕',k:'커피'},{i:'🍵',k:'녹차'},{i:'🧋',k:'버블티'},{i:'🥤',k:'음료'},{i:'🍺',k:'맥주'},
+    {i:'🥂',k:'샴페인'},{i:'🍾',k:'샴페인터뜨리기'},
+  ]},
+  { cat:'🚗 이동 / 장소', icons:[
+    {i:'🚗',k:'자동차'},{i:'🚕',k:'택시'},{i:'🚙',k:'SUV'},{i:'🚌',k:'버스'},{i:'🏎',k:'레이싱카'},{i:'🚓',k:'경찰차'},
+    {i:'🚑',k:'구급차'},{i:'🚒',k:'소방차'},{i:'🚚',k:'트럭'},{i:'✈',k:'비행기'},{i:'🚀',k:'로켓'},{i:'🛸',k:'UFO'},
+    {i:'🚁',k:'헬리콥터'},{i:'⛵',k:'범선'},{i:'🚢',k:'배'},{i:'🚂',k:'기차'},{i:'🚄',k:'고속철도'},{i:'🚇',k:'지하철'},
+    {i:'🚲',k:'자전거'},{i:'🛵',k:'스쿠터'},{i:'🏠',k:'집'},{i:'🏢',k:'사무실빌딩'},{i:'🏥',k:'병원'},{i:'🏦',k:'은행'},
+    {i:'🏨',k:'호텔'},{i:'🏪',k:'편의점'},{i:'🏫',k:'학교'},{i:'🏭',k:'공장'},{i:'🗼',k:'도쿄타워'},{i:'🗽',k:'자유여신상'},
+    {i:'🌃',k:'밤도시'},{i:'🌆',k:'저녁도시'},{i:'🌇',k:'일몰도시'},{i:'🌉',k:'다리야경'},
+  ]},
+  { cat:'💼 사물 / 도구', icons:[
+    {i:'⌚',k:'시계'},{i:'📱',k:'스마트폰'},{i:'💻',k:'노트북'},{i:'🖥',k:'데스크탑'},{i:'📷',k:'카메라'},{i:'📹',k:'비디오카메라'},
+    {i:'🎥',k:'영화카메라'},{i:'📞',k:'전화기'},{i:'☎',k:'구식전화'},{i:'🔋',k:'배터리'},{i:'🔌',k:'플러그'},{i:'💡',k:'전구'},
+    {i:'🔦',k:'손전등'},{i:'🕯',k:'양초'},{i:'💰',k:'돈자루'},{i:'💵',k:'달러'},{i:'💶',k:'유로'},{i:'💳',k:'신용카드'},
+    {i:'📦',k:'박스'},{i:'✉',k:'편지봉투'},{i:'📧',k:'이메일'},{i:'📝',k:'메모'},{i:'📌',k:'핀'},{i:'📍',k:'지도핀'},
+    {i:'✂',k:'가위'},{i:'🔑',k:'열쇠'},{i:'🗝',k:'옛날열쇠'},{i:'🔒',k:'잠금'},{i:'🔓',k:'열림'},{i:'🔨',k:'망치'},
+    {i:'⚙',k:'기어'},{i:'🔧',k:'스패너'},{i:'🔩',k:'볼트'},{i:'🧲',k:'자석'},{i:'🔬',k:'현미경'},{i:'🔭',k:'망원경'},
+    {i:'📚',k:'책들'},{i:'📖',k:'펼친책'},{i:'📰',k:'신문'},
+  ]},
+  { cat:'⭐ 별 / 하늘 / 날씨', icons:[
+    {i:'⭐',k:'별'},{i:'🌟',k:'빛나는별'},{i:'💫',k:'별빙글'},{i:'✨',k:'반짝반짝'},{i:'🌠',k:'별똥별'},{i:'☀',k:'태양'},
+    {i:'🌤',k:'구름조금'},{i:'⛅',k:'반구름'},{i:'☁',k:'구름'},{i:'🌦',k:'소나기'},{i:'🌧',k:'비'},{i:'⛈',k:'천둥번개'},
+    {i:'🌩',k:'번개'},{i:'❄',k:'눈결정'},{i:'⛄',k:'눈사람'},{i:'🌈',k:'무지개'},{i:'🌊',k:'파도'},{i:'💧',k:'물방울'},
+    {i:'💦',k:'물튀김'},{i:'🌙',k:'달'},{i:'🌕',k:'보름달'},{i:'🌌',k:'은하수'},{i:'🌋',k:'화산'},{i:'🏔',k:'눈산'},
+    {i:'⛰',k:'산'},{i:'🏖',k:'해변'},{i:'🏕',k:'캠핑'},{i:'🌍',k:'지구유럽'},{i:'🌎',k:'지구아메리카'},{i:'🌏',k:'지구아시아'},
+  ]},
+  { cat:'📊 기호 / 화살표', icons:[
+    {i:'✅',k:'체크'},{i:'❌',k:'엑스'},{i:'⭕',k:'동그라미'},{i:'🔴',k:'빨간원'},{i:'🟠',k:'주황원'},{i:'🟡',k:'노란원'},
+    {i:'🟢',k:'초록원'},{i:'🔵',k:'파란원'},{i:'🟣',k:'보라원'},{i:'⚫',k:'검은원'},{i:'⚪',k:'흰원'},
+    {i:'▶',k:'재생'},{i:'⏩',k:'빨리감기'},{i:'⏪',k:'뒤로감기'},{i:'⏯',k:'재생일시정지'},{i:'🔀',k:'셔플'},{i:'🔁',k:'반복'},
+    {i:'⬆',k:'위'},{i:'⬇',k:'아래'},{i:'⬅',k:'왼쪽'},{i:'➡',k:'오른쪽'},{i:'↗',k:'우상'},{i:'↘',k:'우하'},
+    {i:'↙',k:'좌하'},{i:'↖',k:'좌상'},{i:'↕',k:'상하'},{i:'↔',k:'좌우'},{i:'🔔',k:'알림벨'},{i:'🔕',k:'알림끔'},
+    {i:'🔇',k:'음소거'},{i:'🔊',k:'소리크게'},{i:'📢',k:'확성기'},{i:'📣',k:'메가폰'},{i:'💬',k:'말풍선'},
+    {i:'💯',k:'백점'},{i:'🔥',k:'불'},{i:'💥',k:'폭발'},{i:'⚡',k:'번개'},{i:'♻',k:'재활용'},
+    {i:'⚠',k:'경고'},{i:'🚫',k:'금지'},{i:'✔',k:'체크'},{i:'➕',k:'더하기'},{i:'➖',k:'빼기'},
+  ]},
+  { cat:'🔤 특수문자 / 구분선', icons:[
+    {i:'【',k:'꺽쇠괄호왼'},{i:'】',k:'꺽쇠괄호오'},{i:'『',k:'겹낫표왼'},{i:'』',k:'겹낫표오'},
+    {i:'「',k:'낫표왼'},{i:'」',k:'낫표오'},{i:'《',k:'이중꺽쇠왼'},{i:'》',k:'이중꺽쇠오'},
+    {i:'〔',k:'사각괄호왼'},{i:'〕',k:'사각괄호오'},{i:'━',k:'굵은줄'},{i:'─',k:'가는줄'},
+    {i:'│',k:'세로줄'},{i:'▪',k:'작은사각'},{i:'●',k:'원'},{i:'○',k:'빈원'},{i:'◎',k:'동심원'},
+    {i:'□',k:'빈사각형'},{i:'■',k:'채운사각형'},{i:'△',k:'삼각형'},{i:'▽',k:'뒤집삼각'},
+    {i:'※',k:'참고'},{i:'♪',k:'음표기호'},{i:'♫',k:'이중음표'},{i:'™',k:'상표'},{i:'©',k:'저작권'},
+    {i:'®',k:'등록상표'},{i:'∞',k:'무한대'},{i:'★',k:'별문자'},{i:'☆',k:'빈별'},{i:'◆',k:'다이아'},
+    {i:'▬▬▬▬▬▬▬▬▬▬',k:'굵은구분선'},{i:'─────────────',k:'가는구분선'},
+    {i:'┄┄┄┄┄┄┄┄┄┄┄',k:'점선구분선'},{i:'══════════════',k:'이중구분선'},
+    {i:'✦──────────✦',k:'별장식구분선'},{i:'◆━━━━━━━━◆',k:'다이아구분선'},
+    {i:'· · · · · · · · · · ·',k:'점점구분선'},{i:'▸▸▸▸▸▸▸▸▸▸',k:'화살표구분선'},
+  ]},
+];;
+
+let allIcons = [];
+
+function initIcons() {
+  const container = document.getElementById('icon-cats');
+  if (!container) return;
+  if (container.children.length > 0) return; // 이미 초기화됨
+  allIcons = [];
+  ICON_DATA.forEach(cat => {
+    const sec = document.createElement('div');
+    sec.dataset.cat = cat.cat;
+    sec.innerHTML = `<div class="sec-lbl" style="margin-top:.75rem">${cat.cat}</div>`;
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:.5rem';
+    grid.dataset.catgrid = cat.cat;
+    cat.icons.forEach(({i, k}) => {
+      allIcons.push({i, k, cat: cat.cat});
+      const btn = document.createElement('button');
+      btn.style.cssText = 'padding:6px 10px;background:var(--s2);border:1px solid var(--b1);border-radius:6px;cursor:pointer;font-size:16px;transition:all .12s;position:relative';
+      btn.title = k;
+      btn.textContent = i;
+      btn.onmouseenter = () => btn.style.background = 'var(--s3)';
+      btn.onmouseleave = () => btn.style.background = 'var(--s2)';
+      btn.onclick = () => {
+        navigator.clipboard.writeText(i).then(() => {
+          const orig = btn.style.background;
+          btn.style.background = 'rgba(111,255,196,.15)';
+          btn.style.borderColor = 'rgba(111,255,196,.4)';
+          setTimeout(() => {
+            btn.style.background = 'var(--s2)';
+            btn.style.borderColor = 'var(--b1)';
+          }, 700);
+        });
+      };
+      grid.appendChild(btn);
+    });
+    sec.appendChild(grid);
+    container.appendChild(sec);
+  });
+}
+
+function filterIcons(query) {
+  const q = query.trim().toLowerCase();
+  const container = document.getElementById('icon-cats');
+  if (!q) {
+    container.querySelectorAll('[data-cat]').forEach(s => s.style.display = '');
+    return;
+  }
+  ICON_DATA.forEach(cat => {
+    const sec = container.querySelector(`[data-cat="${cat.cat}"]`);
+    if (!sec) return;
+    const grid = sec.querySelector('[data-catgrid]');
+    if (!grid) return;
+    const btns = grid.querySelectorAll('button');
+    let anyVisible = false;
+    cat.icons.forEach(({i, k}, idx) => {
+      const btn = btns[idx];
+      const match = k.includes(q) || i.includes(q) || cat.cat.toLowerCase().includes(q);
+      btn.style.display = match ? '' : 'none';
+      if (match) anyVisible = true;
+    });
+    sec.style.display = anyVisible ? '' : 'none';
+  });
+}
+
+// initIcons는 nav()에서 icons 페이지 진입 시 호출
+
+function cpFont(text,card){
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn=card.querySelector('.cp');
+    btn.textContent='복사됨 ✓';btn.classList.add('ok');
+    setTimeout(()=>{btn.textContent='복사';btn.classList.remove('ok')},1800);
+  });
+}
+
+// ── 폴링 ─────────────────────────────────────────────────────
+function pollJob(jobId, type) {
+  const timer = setInterval(async () => {
+    const d = await (await fetch('/api/job/'+jobId)).json();
+    if (type==='lyrics') {
+      if(d.current) document.getElementById('prog-l-txt').textContent=d.current;
+      if(d.status==='done'){clearInterval(timer);renderLyrics(d.results||[]);}
+      else if(d.status==='error'){clearInterval(timer);document.getElementById('prog-l').style.display='none';showErr('err-l',d.error);}
+    } else if(type==='yt') {
+      if(d.percent) document.getElementById('prog-yt-txt').textContent=`추출 중... ${Math.round(d.percent)}%`;
+      if(d.status==='done'){clearInterval(timer);document.getElementById('prog-yt').style.display='none';trackData=[...trackData,...(d.tracks||[]).filter(t=>!isDupe(t))];recalc();renderTracks();}
+      else if(d.status==='error'){clearInterval(timer);document.getElementById('prog-yt').style.display='none';showErr('err-yt',d.error);}
+    }
+  }, 1200);
+}
+
+// ── 헬퍼 ─────────────────────────────────────────────────────
+function showErr(id,msg){
+  const el=document.getElementById(id);
+  if(!el) return;
+  if(msg && (msg.includes('529') || msg.toLowerCase().includes('overloaded'))) {
+    msg = '⚡ Anthropic 서버가 일시적으로 과부하 상태입니다. 잠시 후(1~2분) 다시 시도해주세요.';
+  }
+  el.textContent=msg;
+  el.style.display=msg?'block':'none';
+}
+function cpEl(id,btn){navigator.clipboard.writeText(document.getElementById(id).textContent||'').then(()=>{btn.textContent='복사됨 ✓';btn.classList.add('ok');setTimeout(()=>{btn.textContent='복사';btn.classList.remove('ok')},1800)});}
+function cpText(text,btn){navigator.clipboard.writeText(text).then(()=>{btn.textContent='복사됨 ✓';btn.classList.add('ok');setTimeout(()=>{btn.textContent='복사';btn.classList.remove('ok')},1800)});}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ── 작업 내용 자동 저장/복원 ──────────────────────────────────
+const SESSION_KEY = 'studio_hub_session';
+
+function saveSession() {
+  try {
+    const session = {
+      ts: Date.now(),
+      // 가사 생성기
+      lyricsStore: lyricsStore || {},
+      // 가사 번역
+      trStore: window._trStore || {},
+      trInput: document.getElementById('tr-in')?.value || '',
+      trSelLangs: [...(trSelLangs||new Set())],
+      // YouTube 최적화
+      ytOptTitle: document.getElementById('yt-opt-title')?.value || '',
+      ytOptDesc: document.getElementById('yt-opt-desc')?.value || '',
+      ytOptResult: document.getElementById('ytopt-result')?.innerHTML || '',
+      // 자막 싱크
+      subSrtText: document.getElementById('srt-input')?.value || '',
+      // 가사 생성기 입력값
+      lGenGenre: document.getElementById('l-genre')?.value || '',
+      lGenMood: document.getElementById('l-mood')?.value || '',
+      lGenTheme: document.getElementById('l-theme-val')?.value || '',
+      lGenAvoid: document.getElementById('l-avoid')?.value || '',
+      // 자막 싱크 언어별 텍스트
+      subLangTexts: (() => {
+        const obj = {};
+        ['en','ja','zh','pt','es','vi','de','it','nl','sv'].forEach(code => {
+          const ta = document.getElementById('sub-ta-'+code);
+          if (ta && ta.value) obj[code] = ta.value;
+        });
+        return obj;
+      })(),
+      // 현재 활성 페이지
+      activePage: document.querySelector('.sb-item.active')?.dataset?.page || 'lyrics',
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } catch(e) { console.warn('saveSession error:', e); }
+}
+
+function restoreSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+
+    // 가사 생성기 결과 복원
+    if (s.lyricsStore && Object.keys(s.lyricsStore).length) {
+      lyricsStore = s.lyricsStore;
+      // lyricsStore → results 배열로 변환해서 renderLyrics 호출
+      const results = Object.entries(s.lyricsStore).map(([lang, songs]) => ({
+        lang, songs, success: true
+      }));
+      if (results.length) {
+        const container = document.getElementById('lyrics-results');
+        if (container) {
+          container.innerHTML = '';
+          // suno 태그 카드 없이 언어 카드만 복원
+          results.forEach(r => renderLangCard(r, container));
+          container.closest('.card') && (container.closest('.card').style.display = 'block');
+        }
+      }
+    }
+
+    // 가사 번역 복원
+    if (s.trStore && Object.keys(s.trStore).length) {
+      window._trStore = s.trStore;
+
+      // 입력값 복원
+      if (s.trInput) {
+        const el = document.getElementById('tr-in');
+        if (el) el.value = s.trInput;
+      }
+
+      // 선택 언어 복원
+      if (s.trSelLangs && s.trSelLangs.length) {
+        trSelLangs = new Set(s.trSelLangs);
+        // 언어 버튼 UI 갱신
+        document.querySelectorAll('#tr-lang-grid .lang-item').forEach(div => {
+          const code = div.dataset.code;
+          if (code) div.classList.toggle('sel', trSelLangs.has(code));
+        });
+      }
+
+      // 결과 카드 동적 생성해서 복원
+      const container = document.getElementById('tr-results');
+      if (container) {
+        container.innerHTML = '';
+        Object.entries(s.trStore).forEach(([lang, text]) => {
+          if (!text) return;
+          const color = LANG_COLORS[lang] || '#888';
+          const isKo = lang === 'ko';
+          const uid = 'tr-out-' + lang;
+          const taId = 'tr-ta-' + lang;
+          const editId = 'tr-edit-' + lang;
+          const div = document.createElement('div');
+          div.className = 'card';
+          div.style.marginBottom = '8px';
+          div.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <span class="lr-lang" style="background:${color}22;color:${color};border:1px solid ${color}44;font-family:var(--mono);font-size:11px;padding:2px 9px;border-radius:20px;font-weight:700">${LANG_NAMES_JS[lang]||lang}</span>
+              <div style="display:flex;gap:6px">
+                ${isKo ? `<button class="cp" style="color:var(--a4);border-color:rgba(255,202,111,.3)" onclick="trToggleEdit('${lang}')">✎ 편집</button>` : ''}
+                <button class="cp" onclick="cpEl('${uid}',this)">복사</button>
+              </div>
+            </div>
+            <div class="lyrics-txt" id="${uid}">${esc(text)}</div>
+            ${isKo ? `
+            <div id="${editId}" style="display:none;margin-top:8px">
+              <textarea id="${taId}" style="width:100%;min-height:200px;padding:.875rem;background:var(--s1);border:1px solid var(--a1);border-radius:6px;color:var(--tx);font-size:12px;line-height:1.9;resize:vertical;font-family:var(--sans)">${esc(text)}</textarea>
+              <div style="display:flex;gap:6px;margin-top:7px">
+                <button class="btn btn-p btn-sm" onclick="trApplyEdit('${lang}')">✓ 적용 및 번역</button>
+                <button class="btn btn-g btn-sm" onclick="trCancelEdit('${lang}')">취소</button>
+              </div>
+            </div>` : ''}`;
+          container.appendChild(div);
+        });
+      }
+    }
+
+    // YouTube 최적화 복원
+    if (s.ytOptTitle) {
+      const el = document.getElementById('yt-opt-title');
+      if (el) el.value = s.ytOptTitle;
+    }
+    if (s.ytOptDesc) {
+      const el = document.getElementById('yt-opt-desc');
+      if (el) el.value = s.ytOptDesc;
+    }
+    if (s.ytOptResult) {
+      const el = document.getElementById('ytopt-result');
+      if (el) { el.innerHTML = s.ytOptResult; el.style.display = 'block'; }
+    }
+
+    // 자막 싱크 언어별 텍스트 복원
+    if (s.subLangTexts) {
+      Object.entries(s.subLangTexts).forEach(([code, text]) => {
+        const ta = document.getElementById('sub-ta-'+code);
+        if (ta && text) ta.value = text;
+      });
+    }
+
+    // 가사 생성기 입력값 복원
+    if (s.lGenAvoid) {
+      const el = document.getElementById('l-avoid');
+      if (el) el.value = s.lGenAvoid;
+    }
+
+    console.log('[session] 복원 완료', new Date(s.ts).toLocaleString());
+  } catch(e) { console.warn('restoreSession error:', e); }
+}
+
+// 자동 저장: 30초마다 + 페이지 이탈 시
+setInterval(saveSession, 30000);
+window.addEventListener('beforeunload', saveSession);
+
+// 주요 이벤트마다 저장
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.btn') || e.target.closest('.cp')) {
+    setTimeout(saveSession, 500);
+  }
+});
+
+// 페이지 로드 시 복원 (DOM 준비 후)
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(restoreSession, 300);
+});
+// ────────────────────────────────────────────────────────────
+
+// ── 트랙 분석 ──────────────────────────────────────────────
+let trackFile = null;
+
+function onTrackFileSelect(input) {
+  if (!input.files[0]) return;
+  trackFile = input.files[0];
+  document.getElementById('track-file-name').textContent = trackFile.name;
+  document.getElementById('analyze-btn').style.display = 'block';
+}
+
+// 드래그앤드롭
+document.addEventListener('DOMContentLoaded', () => {
+  const label = document.getElementById('track-drop-label');
+  if (!label) return;
+  label.addEventListener('dragover', e => { e.preventDefault(); label.style.borderColor = 'var(--a3)'; });
+  label.addEventListener('dragleave', () => { label.style.borderColor = 'var(--b2)'; });
+  label.addEventListener('drop', e => {
+    e.preventDefault();
+    label.style.borderColor = 'var(--b2)';
+    const file = e.dataTransfer.files[0];
+    if (file && /\.(mp3|wav|m4a|flac)$/i.test(file.name)) {
+      trackFile = file;
+      document.getElementById('track-file-name').textContent = file.name;
+      document.getElementById('analyze-btn').style.display = 'block';
+    }
+  });
+});
+
+async function analyzeTrack() {
+  if (!trackFile) return;
+  showErr('err-analyze', '');
+  document.getElementById('prog-analyze').style.display = 'block';
+  document.getElementById('analyze-result').style.display = 'none';
+  document.getElementById('analyze-btn').disabled = true;
+
+  try {
+    const fd = new FormData();
+    fd.append('file', trackFile);
+    const res = await fetch('/api/analyze/track', { method: 'POST', body: fd });
+    const d = await res.json();
+    document.getElementById('prog-analyze').style.display = 'none';
+
+    if (!d.success) { showErr('err-analyze', d.error); return; }
+
+    const a = d.analysis || {};
+    const audio = d.audio || {};
+    const meta = d.meta || {};
+
+    // 분석 결과 표시
+    const bpmVal = audio.bpm || meta.bpm || '';
+    const keyVal = audio.key || meta.key || '';
+    document.getElementById('analyze-summary').innerHTML =
+      `<strong style="color:var(--tx)">${meta.title||trackFile.name}</strong> ${meta.artist ? '— '+meta.artist : ''}<br>` +
+      (bpmVal ? `BPM: <span style="color:var(--a3)">${bpmVal}</span>  ` : '') +
+      (keyVal ? `Key: <span style="color:var(--a1)">${keyVal}</span>  ` : '') +
+      (a.analysis_summary || '');
+
+    // 태그 표시
+    const tagsEl = document.getElementById('analyze-tags');
+    tagsEl.innerHTML = '';
+    [...(a.genre_chips||[]), ...(a.mood_chips||[])].forEach(tag => {
+      const span = document.createElement('span');
+      span.style.cssText = 'background:var(--a1d);color:var(--a1);border:1px solid rgba(124,111,255,.3);border-radius:20px;padding:2px 9px;font-size:11px';
+      span.textContent = tag;
+      tagsEl.appendChild(span);
+    });
+    document.getElementById('analyze-result').style.display = 'block';
+
+    // 옵션 자동 적용
+    applyAnalysisToOptions(a, audio, meta);
+
+  } catch(e) {
+    showErr('err-analyze', '분석 오류: ' + e.message);
+  } finally {
+    document.getElementById('analyze-btn').disabled = false;
+    document.getElementById('prog-analyze').style.display = 'none';
+  }
+}
+
+function applyAnalysisToOptions(a, audio, meta) {
+  const setEl = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val) el.value = val;
+  };
+
+  // 기존 선택 초기화
+  document.querySelectorAll('#chips-genre .chip.sel, #chips-mood .chip.sel').forEach(c => c.classList.remove('sel'));
+  document.querySelectorAll('#vocal-tone-grid .chip.sel').forEach(c => c.classList.remove('sel'));
+  const genreInp = document.getElementById('l-genre');
+  const moodInp = document.getElementById('l-mood');
+  if (genreInp) genreInp.value = '';
+  if (moodInp) moodInp.value = '';
+
+  // BPM 선택
+  if (a.bpm_option) setEl('l-bpm', a.bpm_option);
+
+  // 랩 스타일
+  if (a.lyric_style) setEl('l-lyric-style', a.lyric_style);
+
+  // 비트/프로덕션
+  if (a.instrument) setEl('l-instrument', a.instrument);
+
+  // 사운드스케이프
+  if (a.sound) setEl('l-sound', a.sound);
+
+  // 가사 밀도
+  if (a.lyric_density) setEl('l-length', a.lyric_density);
+
+  // 장르 칩 선택
+  // 장르/분위기 칩 선택 (DOM 렌더링 후 실행)
+  setTimeout(() => {
+    if (a.genre_chips?.length) {
+      const genreInp = document.getElementById('l-genre');
+      const chips = document.querySelectorAll('#chips-genre .chip');
+      console.log('[분석] 장르 칩 수:', chips.length, '선택할 값:', a.genre_chips);
+      chips.forEach(c => {
+        if (a.genre_chips.includes(c.dataset.val)) {
+          c.classList.add('sel');
+          if (genreInp && !genreInp.value.includes(c.dataset.val)) {
+            genreInp.value = genreInp.value ? genreInp.value + ', ' + c.dataset.val : c.dataset.val;
+          }
+        }
+      });
+    }
+    if (a.mood_chips?.length) {
+      const moodInp = document.getElementById('l-mood');
+      const chips = document.querySelectorAll('#chips-mood .chip');
+      console.log('[분석] 분위기 칩 수:', chips.length, '선택할 값:', a.mood_chips);
+      chips.forEach(c => {
+        if (a.mood_chips.includes(c.dataset.val)) {
+          c.classList.add('sel');
+          if (moodInp && !moodInp.value.includes(c.dataset.val)) {
+            moodInp.value = moodInp.value ? moodInp.value + ', ' + c.dataset.val : c.dataset.val;
+          }
+        }
+      });
+    }
+  }, 300);
+
+  // 보컬 톤 칩 선택
+  if (a.vocal_tone_chips?.length) {
+    document.querySelectorAll('#vocal-tone-grid .chip').forEach(c => {
+      if (a.vocal_tone_chips.includes(c.dataset.val)) c.classList.add('sel');
+    });
+  }
+
+  // 보컬 구성 (래퍼 타입) 선택
+  if (a.vocal_type) {
+    const vtEl = document.getElementById('l-vocal-type');
+    if (vtEl) { vtEl.value = a.vocal_type; updateVocalUI(); }
+  }
+  if (a.vocalist) {
+    const vEl = document.getElementById('l-vocal');
+    if (vEl) vEl.value = a.vocalist;
+  }
+
+  // 테마 제안 표시
+  if (a.theme_suggestion) {
+    const avoidEl = document.getElementById('l-avoid');
+    if (avoidEl && !avoidEl.value) {
+      // 테마 힌트를 표시 (입력 안내)
+    }
+  }
+
+  console.log('[분석 완료] 옵션 적용됨:', a);
+}
+// ──────────────────────────────────────────────────────────
+
+// ── 채널 분석 ──────────────────────────────────────────────
+async function analyzeChannel() {
+  const myChannel = document.getElementById('ch-my').value.trim();
+  if (!myChannel) { showErr('err-channel', '내 채널을 입력해주세요'); return; }
+
+  showErr('err-channel', '');
+  document.getElementById('ch-analyze-btn').disabled = true;
+  document.getElementById('prog-channel').style.display = 'block';
+  ['ch-my-card','ch-similar-card','ch-feedback-card'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+
+  const similarRaw = document.getElementById('ch-similar').value.trim();
+  const similarChannels = similarRaw ? similarRaw.split('\n').map(s=>s.trim()).filter(Boolean) : [];
+  const keywords = document.getElementById('ch-keywords').value.trim();
+  const autoSearch = document.getElementById('ch-auto-search').checked;
+
+  try {
+    const res = await fetch('/api/channel/analyze', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        my_channel: myChannel,
+        similar_channels: similarChannels,
+        keywords: keywords,
+        auto_search: autoSearch
+      })
+    });
+    const d = await res.json();
+    document.getElementById('prog-channel').style.display = 'none';
+
+    if (!d.success) { showErr('err-channel', d.error); return; }
+
+    renderChannelResult(d);
+  } catch(e) {
+    showErr('err-channel', '오류: ' + e.message);
+  } finally {
+    document.getElementById('ch-analyze-btn').disabled = false;
+    document.getElementById('prog-channel').style.display = 'none';
+  }
+}
+
+function renderChannelResult(d) {
+  // 내 채널 정보
+  const myInfo = d.my_channel?.info;
+  const myVideos = d.my_channel?.videos || [];
+  if (myInfo) {
+    const avgViews = myVideos.length ? Math.round(myVideos.reduce((s,v)=>s+v.views,0)/myVideos.length) : 0;
+    const avgLikes = myVideos.length ? Math.round(myVideos.reduce((s,v)=>s+v.likes,0)/myVideos.length) : 0;
+    const top3 = [...myVideos].sort((a,b)=>b.views-a.views).slice(0,3);
+
+    document.getElementById('ch-my-info').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:1rem">
+        ${[
+          ['채널명', myInfo.title],
+          ['구독자', Number(myInfo.subscribers||0).toLocaleString()],
+          ['총 조회수', Number(myInfo.total_views||0).toLocaleString()],
+          ['영상 수', myInfo.video_count],
+          ['평균 조회수', avgViews.toLocaleString()],
+          ['평균 좋아요', avgLikes.toLocaleString()],
+        ].map(([k,v])=>`
+          <div style="background:var(--s3);border-radius:6px;padding:.75rem;text-align:center">
+            <div style="font-size:11px;color:var(--m2);margin-bottom:4px">${k}</div>
+            <div style="font-size:15px;font-weight:600;color:var(--tx)">${v||'-'}</div>
+          </div>`).join('')}
+      </div>
+      <div style="font-size:12px;color:var(--m2);margin-bottom:6px">🏆 인기 영상 TOP 3</div>
+      ${top3.map((v,i)=>`
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--b1);font-size:12px">
+          <span style="color:var(--a1)">${i+1}.</span>
+          <span style="flex:1;margin:0 8px">${esc(v.title)}</span>
+          <span style="color:var(--a3)">${v.views.toLocaleString()}회</span>
+        </div>`).join('')}
+    `;
+    document.getElementById('ch-my-card').style.display = 'block';
+  }
+
+  // 유사 채널
+  const similar = d.similar_channels || [];
+  if (similar.length) {
+    const list = document.getElementById('ch-similar-list');
+    list.innerHTML = '';
+    similar.forEach(ch => {
+      const info = ch.info;
+      const videos = ch.videos || [];
+      const avgViews = videos.length ? Math.round(videos.reduce((s,v)=>s+v.views,0)/videos.length) : 0;
+      const top1 = videos.sort((a,b)=>b.views-a.views)[0];
+      const div = document.createElement('div');
+      div.style.cssText = 'background:var(--s3);border-radius:8px;padding:12px';
+      div.innerHTML = `
+        <div style="font-weight:500;margin-bottom:8px;color:var(--tx)">${esc(info.title)}</div>
+        <div style="font-size:11px;color:var(--m2);display:flex;flex-direction:column;gap:3px">
+          <span>구독자: <strong style="color:var(--a1)">${Number(info.subscribers||0).toLocaleString()}</strong></span>
+          <span>평균 조회수: <strong style="color:var(--a3)">${avgViews.toLocaleString()}</strong></span>
+          <span>영상 수: ${info.video_count}</span>
+          ${top1 ? `<span style="margin-top:4px;color:var(--m1)">🏆 ${esc(top1.title.slice(0,30))}...</span>` : ''}
+        </div>`;
+      list.appendChild(div);
+    });
+    document.getElementById('ch-similar-card').style.display = 'block';
+  }
+
+  // 피드백
+  if (d.feedback) {
+    document.getElementById('ch-feedback').textContent = d.feedback;
+    document.getElementById('ch-feedback-card').style.display = 'block';
+    document.getElementById('ch-feedback-card').scrollIntoView({behavior:'smooth'});
+  }
+}
+// ──────────────────────────────────────────────────────────
+</script>
+</body>
+</html>
