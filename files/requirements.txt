@@ -1,9 +1,0 @@
-flask
-flask-cors
-anthropic
-google-generativeai
-requests
-yt-dlp
-mutagen
-librosa
-numpy
