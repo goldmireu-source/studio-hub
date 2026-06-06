@@ -1883,7 +1883,7 @@ function renderLyrics(results) {
       <span style="font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--a3)">Suno 스타일 태그</span>
       <div style="display:flex;gap:6px">
         <button class="cp" style="color:var(--a4);border-color:rgba(255,202,111,.3)" onclick="toggleSunoEdit()">✎ 수정</button>
-        <button class="cp" style="color:var(--a3);border-color:rgba(111,255,196,.3)" onclick="cpEl('suno-tags-txt',this)">복사</button>
+        <button class="cp" style="color:var(--a3);border-color:rgba(111,255,196,.3)" onclick="copySunoTags(this)">복사</button>
         <button class="btn btn-g btn-sm" onclick="regenSunoTags()" style="font-size:10px;padding:3px 9px">↺ 재생성</button>
       </div>
     </div>
@@ -1997,6 +1997,14 @@ function saveSunoTags() {
   txt.style.display = 'block';
   ta.style.display = 'none';
   btns.style.display = 'none';
+}
+
+function copySunoTags(btn) {
+  const ta = document.getElementById('suno-tags-edit');
+  const txt = document.getElementById('suno-tags-txt');
+  const isEditing = ta && ta.style.display !== 'none';
+  const text = isEditing ? ta.value.trim() : (txt ? txt.textContent.trim() : '');
+  _clipCopy(text, btn);
 }
 
 function cancelSunoEdit() {
@@ -3401,8 +3409,26 @@ function showErr(id,msg){
   el.textContent=msg;
   el.style.display=msg?'block':'none';
 }
-function cpEl(id,btn){navigator.clipboard.writeText(document.getElementById(id).textContent||'').then(()=>{btn.textContent='복사됨 ✓';btn.classList.add('ok');setTimeout(()=>{btn.textContent='복사';btn.classList.remove('ok')},1800)});}
-function cpText(text,btn){navigator.clipboard.writeText(text).then(()=>{btn.textContent='복사됨 ✓';btn.classList.add('ok');setTimeout(()=>{btn.textContent='복사';btn.classList.remove('ok')},1800)});}
+function _clipCopy(text,btn,label){
+  label=label||'복사';
+  function ok(){btn.textContent='복사됨 ✓';btn.classList.add('ok');setTimeout(()=>{btn.textContent=label;btn.classList.remove('ok')},1800);}
+  function fallback(){
+    const ta=document.createElement('textarea');
+    ta.value=text;ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';
+    document.body.appendChild(ta);ta.focus();ta.select();
+    try{if(document.execCommand('copy'))ok();}catch(e){}
+    document.body.removeChild(ta);
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(ok).catch(fallback);
+  }else{fallback();}
+}
+function cpEl(id,btn){
+  const el=document.getElementById(id);
+  if(!el){console.warn('cpEl: element not found:',id);return;}
+  _clipCopy(el.textContent||'',btn);
+}
+function cpText(text,btn){_clipCopy(text,btn);}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // ── 작업 내용 자동 저장/복원 ──────────────────────────────────

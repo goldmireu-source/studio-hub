@@ -86,19 +86,61 @@ def api_get_settings():
     return jsonify({'has_key': False})
 
 # ── Claude API 헬퍼 ───────────────────────────────────────────
-def call_claude(system, user, max_tokens=2000):
+# 모델 상수: 작업별로 선택
+CLAUDE_MODEL_SONNET = 'claude-sonnet-4-6'   # 일반 작업 (가사/번역/피드백 등)
+CLAUDE_MODEL_HAIKU  = 'claude-haiku-4-5'    # 단순/짧은 작업 (태그 생성 등) — 3배 저렴
+
+def call_claude(system, user, max_tokens=2000, model=None,
+                cache_system=False, output_schema=None):
+    """
+    Claude API 호출 헬퍼.
+      - model: 기본 Sonnet 4.6. 단순 작업은 CLAUDE_MODEL_HAIKU.
+      - cache_system: True이면 system 프롬프트에 prompt caching 적용
+                      (~90% 절감, Sonnet 4.6는 2048+ 토큰 필요).
+      - output_schema: dict (JSON Schema). 제공 시 구조화 출력 강제 —
+                      마크다운/설명 래퍼 없는 순수 JSON 보장.
+    반환: 응답 텍스트 (str). output_schema 사용 시 곧바로 json.loads 가능.
+    """
     import anthropic
     client = anthropic.Anthropic()
+    chosen_model = model or CLAUDE_MODEL_SONNET
+
+    # system 프롬프트: 캐싱 사용 시 블록 형식으로 래핑
+    if cache_system:
+        system_param = [{
+            'type': 'text',
+            'text': system,
+            'cache_control': {'type': 'ephemeral'}
+        }]
+    else:
+        system_param = system
+
+    kwargs = {
+        'model': chosen_model,
+        'max_tokens': max_tokens,
+        'system': system_param,
+        'messages': [{'role': 'user', 'content': user}],
+    }
+    if output_schema is not None:
+        kwargs['output_config'] = {
+            'format': {
+                'type': 'json_schema',
+                'schema': output_schema,
+            }
+        }
+
+    # max_tokens가 크면 SDK가 비스트리밍 호출을 거부할 수 있음 → 자동 스트리밍
+    use_stream = max_tokens > 8000
+
     last_err = None
     waits = [8, 15, 25, 40]  # 재시도 대기 시간(초)
     for attempt in range(5):
         try:
-            msg = client.messages.create(
-                model='claude-sonnet-4-20250514',
-                max_tokens=max_tokens,
-                system=system,
-                messages=[{'role': 'user', 'content': user}]
-            )
+            if use_stream:
+                with client.messages.stream(**kwargs) as stream:
+                    msg = stream.get_final_message()
+            else:
+                msg = client.messages.create(**kwargs)
             return msg.content[0].text.strip()
         except Exception as e:
             last_err = e
@@ -111,6 +153,13 @@ def call_claude(system, user, max_tokens=2000):
             else:
                 raise
     raise last_err
+
+
+def call_claude_json(system, user, schema, max_tokens=2000, model=None, cache_system=False):
+    """JSON 응답 헬퍼. schema로 구조 강제, 파싱된 dict 반환."""
+    text = call_claude(system, user, max_tokens=max_tokens, model=model,
+                       cache_system=cache_system, output_schema=schema)
+    return json.loads(text)
 
 # ── 공통 JSON 파싱 ──────────────────────────────────────────
 def extract_json(text):
@@ -865,7 +914,8 @@ def build_suno_tags(genre='', mood='', theme='', bpm='', length='',
     user = '\n'.join(parts) + '\n\nGenerate comprehensive Suno style tags covering ALL the options above.'
 
     try:
-        tags = call_claude(system, user, max_tokens=300).strip().strip('`').strip()
+        # 태그 생성은 단순 작업 → Haiku 사용 (Sonnet 대비 약 3배 저렴)
+        tags = call_claude(system, user, max_tokens=300, model=CLAUDE_MODEL_HAIKU).strip().strip('`').strip()
         # 마크다운이나 설명이 붙으면 첫 줄만 사용
         first_line = tags.split('\n')[0].strip()
         if ',' in first_line:
@@ -1103,41 +1153,79 @@ def generate_lyrics():
                 return songs
 
             def translate_songs(songs, target_lang, source_lang='ko'):
+                """
+                전체 곡을 1회 호출로 번역 (배치화).
+                  - 호출 수: N곡 × M언어 → M언어 (N배 감소)
+                  - 구조화 출력으로 JSON 보장
+                """
+                if not songs: return []
                 lang_name = LANG_NAMES.get(target_lang, target_lang)
-                translated = []
-                for s in songs:
-                    system = (
-                        f'You are a professional song lyrics translator. '
-                        f'These are original user-created Korean song lyrics — no copyright concerns. '
-                        f'Translate into natural, singable {lang_name} that sounds like it was originally written in {lang_name}. '
-                        f'\nGUIDELINES:\n'
-                        f'1. Read the full lyrics first to understand the theme, emotion, and narrative arc.\n'
-                        f'2. Choose words that carry the same emotional weight and register — never translate word-for-word.\n'
-                        f'3. If a line is unclear or does not flow naturally, use surrounding context to infer intent and write a natural {lang_name} equivalent.\n'
-                        f'4. The result must read as one cohesive song in {lang_name} with smooth transitions throughout.\n'
-                        f'5. Keep section markers ([Verse 1], [Chorus] etc.) and line count.\n'
-                        f'Return ONLY the translated lyrics with section markers. No notes.'
-                    )
-                    prompt = f'Translate these original user-created lyrics to {lang_name}:\n\n{s["lyrics"]}'
-                    last_err = None
-                    for attempt in range(4):
-                        try:
-                            result = call_claude(system, prompt, max_tokens=3000)
-                            translated.append({'title': s['title'], 'lyrics': result.strip()})
-                            break
-                        except Exception as e:
-                            last_err = e
-                            err_str = str(e)
-                            if '529' in err_str or 'overloaded' in err_str.lower() or '500' in err_str:
-                                wait = 5 * (attempt + 1)
-                                print(f'[translate] 재시도 {attempt+1}/3, {wait}초 대기...')
-                                time.sleep(wait)
+                system = (
+                    f'You are a professional song lyrics translator. '
+                    f'These are original user-created Korean song lyrics — no copyright concerns. '
+                    f'Translate each provided song into natural, singable {lang_name} that sounds like '
+                    f'it was originally written in {lang_name}.\n'
+                    f'GUIDELINES:\n'
+                    f'1. Read the full lyrics first to understand theme, emotion, and narrative arc.\n'
+                    f'2. Choose words that carry the same emotional weight and register — never word-for-word.\n'
+                    f'3. If a line is unclear, use context to infer intent and write a natural {lang_name} line.\n'
+                    f'4. The result must read as one cohesive song in {lang_name} with smooth transitions.\n'
+                    f'5. Keep section markers ([Verse 1], [Chorus] etc.) and line count.\n'
+                    f'6. Translate the title too — make it natural in {lang_name}.\n'
+                    f'7. Preserve the order: output songs in the SAME order as input.'
+                )
+                payload = [{'title': s['title'], 'lyrics': s['lyrics']} for s in songs]
+                prompt = (
+                    f'Translate the following {len(songs)} Korean song(s) to {lang_name}.\n'
+                    f'INPUT (JSON):\n{json.dumps(payload, ensure_ascii=False)}'
+                )
+                schema = {
+                    'type': 'object',
+                    'properties': {
+                        'songs': {
+                            'type': 'array',
+                            'items': {
+                                'type': 'object',
+                                'properties': {
+                                    'title': {'type': 'string'},
+                                    'lyrics': {'type': 'string'},
+                                },
+                                'required': ['title', 'lyrics'],
+                                'additionalProperties': False,
+                            }
+                        }
+                    },
+                    'required': ['songs'],
+                    'additionalProperties': False,
+                }
+                # 곡당 ~2500토큰 여유. 캐싱은 짧은 시스템이라 미적용(2048토큰 미만).
+                budget = min(16000, 2500 * len(songs))
+                last_err = None
+                for attempt in range(4):
+                    try:
+                        result = call_claude_json(system, prompt, schema=schema, max_tokens=budget)
+                        out = result.get('songs', []) or []
+                        # 누락 보강
+                        translated = []
+                        for i, s in enumerate(songs):
+                            if i < len(out) and isinstance(out[i], dict):
+                                translated.append({
+                                    'title': str(out[i].get('title') or s['title']).strip(),
+                                    'lyrics': str(out[i].get('lyrics') or '').strip(),
+                                })
                             else:
-                                translated.append({'title': s['title'], 'lyrics': f'[번역 오류: {e}]'})
-                                break
-                    else:
-                        translated.append({'title': s['title'], 'lyrics': f'[번역 오류: {last_err}]'})
-                return translated
+                                translated.append({'title': s['title'], 'lyrics': '[번역 누락]'})
+                        return translated
+                    except Exception as e:
+                        last_err = e
+                        err_str = str(e)
+                        if '529' in err_str or 'overloaded' in err_str.lower() or '500' in err_str:
+                            wait = 5 * (attempt + 1)
+                            print(f'[translate] 재시도 {attempt+1}/4, {wait}초 대기...')
+                            time.sleep(wait)
+                        else:
+                            break
+                return [{'title': s['title'], 'lyrics': f'[번역 오류: {last_err}]'} for s in songs]
 
             # ── STEP 1: 한국어 가사 생성 ──────────────────────
             job_store[job_id]['current'] = '한국어 가사 생성 중...'
@@ -1146,9 +1234,7 @@ def generate_lyrics():
             ko_system = (
                 'You are a professional Korean hip-hop lyricist. '
                 'You write like top-tier Korean rap artists — sharp, specific, rhythmic, street-authentic. '
-                f'Generate {count} Korean hip-hop song(s). '
-                'Respond ONLY in JSON with ENGLISH keys (no markdown): '
-                '{"songs":[{"title":"제목","lyrics":"가사"}]}'
+                f'Generate {count} Korean hip-hop song(s).'
             )
             ko_user = (
                 f'Genre/Style: {genre}\nMood: {mood}\nTheme: {theme}\n'
@@ -1180,7 +1266,28 @@ def generate_lyrics():
                 + (f'FORBIDDEN WORDS/PHRASES: {avoid}\n' if avoid else '')
                 + f'\nGenerate {count} unique Korean hip-hop song(s) now.'
             )
-            ko_songs = normalize_songs(parse_lyrics(call_claude(ko_system, ko_user, max_tokens=3000)))
+            ko_schema = {
+                'type': 'object',
+                'properties': {
+                    'songs': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'title': {'type': 'string'},
+                                'lyrics': {'type': 'string'},
+                            },
+                            'required': ['title', 'lyrics'],
+                            'additionalProperties': False,
+                        }
+                    }
+                },
+                'required': ['songs'],
+                'additionalProperties': False,
+            }
+            ko_budget = min(16000, 2500 * max(1, count))
+            ko_result = call_claude_json(ko_system, ko_user, schema=ko_schema, max_tokens=ko_budget)
+            ko_songs = normalize_songs(ko_result.get('songs', []))
             results.append({'lang': 'ko', 'lang_name': '한국어', 'songs': ko_songs})
             job_store[job_id]['progress'] = 25
 
@@ -1271,11 +1378,7 @@ def suno_prompt():
     # 옵션 요약 문자열
     opts_summary = '\n'.join(detail_parts)
 
-    system = (
-        'You are a Suno AI music expert. Generate song prompts for Suno AI. '
-        'Respond ONLY in JSON (no markdown): '
-        '{"prompts": [{"title": "...", "tags": "...", "description": "..."}]}'
-    )
+    system = 'You are a Suno AI music expert. Generate song prompts for Suno AI.'
     user = (
         f'Base options (ALL must be reflected in every tags field):\n'
         f'Genre: {genre}\nMood: {mood}\nTheme: {theme}\n'
@@ -1288,19 +1391,28 @@ def suno_prompt():
         f'- description: one sentence describing the song feel\n'
         f'Each set should vary in creative direction while keeping the base options.'
     )
+    schema = {
+        'type': 'object',
+        'properties': {
+            'prompts': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'title': {'type': 'string'},
+                        'tags': {'type': 'string'},
+                        'description': {'type': 'string'},
+                    },
+                    'required': ['title', 'tags', 'description'],
+                    'additionalProperties': False,
+                }
+            }
+        },
+        'required': ['prompts'],
+        'additionalProperties': False,
+    }
     try:
-        text = call_claude(system, user, max_tokens=1500)
-        clean = text.strip()
-        if '```' in clean:
-            m = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', clean, re.DOTALL)
-            if m:
-                clean = m.group(1)
-            else:
-                for p in clean.split('```'):
-                    p = p.strip()
-                    if p.lower().startswith('json'): p = p[4:].strip()
-                    if p.startswith('{'): clean = p; break
-        parsed = extract_json(text)
+        parsed = call_claude_json(system, user, schema=schema, max_tokens=1200)
         prompts = parsed.get('prompts', [])
         return jsonify({'success': True, 'prompts': prompts})
     except Exception as e:
@@ -1468,34 +1580,53 @@ def youtube_optimize():
             f'Common tags: {json.dumps(list(set(tags_sample))[:30], ensure_ascii=False)}'
         )
 
-    want = []
-    if options.get('titles',True): want.append('"titles": ["title1","title2","title3","title4","title5"]')
-    if options.get('description',True): want.append('"description": "full video description with hashtags at end"')
-    if options.get('tags',True): want.append('"tags": ["tag1","tag2",...]')
-    if options.get('hashtags',True): want.append('"hashtags": ["#tag1","#tag2",...]')
-    if options.get('comment',True): want.append('"comment": "engaging pinned comment"')
+    # 옵션에 따라 동적으로 스키마/요청 구성
+    props = {}
+    required = []
+    want_lines = []
+    if options.get('titles', True):
+        props['titles'] = {'type': 'array', 'items': {'type': 'string'}}
+        required.append('titles')
+        want_lines.append('- titles: 5 compelling title variations (analyze reference patterns if available)')
+    if options.get('description', True):
+        props['description'] = {'type': 'string'}
+        required.append('description')
+        want_lines.append('- description: 2-3 short paragraphs, SEO optimized, hashtags at end (keep concise)')
+    if options.get('tags', True):
+        props['tags'] = {'type': 'array', 'items': {'type': 'string'}}
+        required.append('tags')
+        want_lines.append('- tags: 25-30 relevant tags as array')
+    if options.get('hashtags', True):
+        props['hashtags'] = {'type': 'array', 'items': {'type': 'string'}}
+        required.append('hashtags')
+        want_lines.append('- hashtags: 10-15 hashtags as array')
+    if options.get('comment', True):
+        props['comment'] = {'type': 'string'}
+        required.append('comment')
+        want_lines.append('- comment: engaging pinned comment to boost engagement')
+
+    schema = {
+        'type': 'object',
+        'properties': props,
+        'required': required,
+        'additionalProperties': False,
+    }
 
     system = (
         'You are a YouTube SEO expert specializing in music content. '
-        f'Generate YouTube upload optimization content in {lang_label}. '
-        f'Respond ONLY in JSON (no markdown): {{{", ".join(want)}}}'
+        f'Generate YouTube upload optimization content in {lang_label}.'
     )
     user = (
         f'Song title: {title}\nGenre: {genre}\nMood: {mood}\n'
         + (f'Lyrics excerpt:\n{lyrics[:400]}\n' if lyrics else '') +
         ref_summary +
         f'\n\nGenerate YouTube optimization for this music video upload.\n'
-        f'Language: {lang_label}\n'
-        f'- titles: 5 compelling title variations (analyze reference patterns if available)\n'
-        f'- description: 2-3 short paragraphs, SEO optimized, hashtags at end (keep concise to fit in response)\n'
-        f'- tags: 25-30 relevant tags as array\n'
-        f'- hashtags: 10-15 hashtags as array\n'
-        f'- comment: engaging pinned comment to boost engagement'
+        f'Language: {lang_label}\n' +
+        '\n'.join(want_lines)
     )
 
     try:
-        text = call_claude(system, user, max_tokens=4000)
-        result = extract_json(text)
+        result = call_claude_json(system, user, schema=schema, max_tokens=2500)
         return jsonify({
             'success': True,
             'refs': [{'id':r['id'],'title':r['title'],'views':r['views']} for r in refs],
@@ -1518,22 +1649,24 @@ def gen_prompts():
     keywords = data.get('keywords','')
     style = data.get('style','')
 
-    system = (
-        'You are a creative director for music video shorts. '
-        'Respond ONLY in JSON (no markdown): '
-        '{"midjourney":"...","suno_tags":"...","capcut":"..."}'
-    )
+    system = 'You are a creative director for music video shorts.'
     user = (
         f'Genre: {genre}\nMood: {mood}\nKeywords: {keywords}\nVisual style: {style}\n'
         f'Generate: midjourney prompt (no --ar flags), suno style tags, capcut editing suggestion.'
     )
+    schema = {
+        'type': 'object',
+        'properties': {
+            'midjourney': {'type': 'string'},
+            'suno_tags': {'type': 'string'},
+            'capcut': {'type': 'string'},
+        },
+        'required': ['midjourney', 'suno_tags', 'capcut'],
+        'additionalProperties': False,
+    }
     try:
-        text = call_claude(system, user)
-        if '```' in text:
-            for p in text.split('```'):
-                if '{' in p: text=p.strip(); break
-                if p.strip().startswith('json'): text=p.strip()[4:]; break
-        return jsonify({'success':True, 'prompts':json.loads(text)})
+        prompts = call_claude_json(system, user, schema=schema, max_tokens=600)
+        return jsonify({'success':True, 'prompts':prompts})
     except Exception as e:
         return jsonify({'success':False, 'error':str(e)}), 500
 
@@ -1550,9 +1683,7 @@ def gen_scenes():
 
     system = (
         'You are an anime storyboard director. '
-        'Given song lyrics, generate exactly 10 Midjourney image prompts for key scenes. '
-        'You MUST respond ONLY with valid JSON, no other text, no explanation, no markdown. '
-        'JSON format: {"scenes":[{"index":1,"lyric":"short lyric excerpt","prompt":"midjourney prompt here"}]}'
+        'Given song lyrics, generate exactly 10 Midjourney image prompts for key scenes.'
     )
     user = (
         f'Visual style: {style}\n\n'
@@ -1560,18 +1691,36 @@ def gen_scenes():
         f'Generate 10 scene prompts. Rules:\n'
         f'- Each prompt should describe a visual scene inspired by that lyric section\n'
         f'- Include lighting, color, composition details\n'
-        f'- Do NOT include --ar or any parameters\n'
-        f'- Respond ONLY with the JSON object, nothing else'
+        f'- Do NOT include --ar or any parameters'
     )
+    schema = {
+        'type': 'object',
+        'properties': {
+            'scenes': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'index': {'type': 'integer'},
+                        'lyric': {'type': 'string'},
+                        'prompt': {'type': 'string'},
+                    },
+                    'required': ['index', 'lyric', 'prompt'],
+                    'additionalProperties': False,
+                }
+            }
+        },
+        'required': ['scenes'],
+        'additionalProperties': False,
+    }
     try:
-        text = call_claude(system, user, max_tokens=3000)
-        parsed = extract_json(text)
+        parsed = call_claude_json(system, user, schema=schema, max_tokens=3000)
         scenes = parsed.get('scenes', [])
         if not scenes:
             return jsonify({'success': False, 'error': '장면 데이터를 파싱할 수 없습니다. 다시 시도해주세요.'}), 500
         return jsonify({'success': True, 'scenes': scenes})
     except Exception as e:
-        print(f'[scenes error] {e}\ntext: {text[:200] if "text" in dir() else "N/A"}')
+        print(f'[scenes error] {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ── 자막 줄 재배분 ───────────────────────────────────────────
@@ -1586,18 +1735,24 @@ def subtitle_redistribute():
     system = (
         'You are a subtitle editor. Redistribute song lyrics into exactly the specified number of subtitle lines. '
         'RULES:\n'
-        '1. Output ONLY the redistributed lines as a JSON array: {"lines": ["line1", "line2", ...]}\n'
-        '2. The array must contain EXACTLY the requested number of lines — no more, no less.\n'
-        '3. Keep each line short enough to read as a subtitle (max ~60 chars).\n'
-        '4. Preserve the original meaning and natural phrasing.\n'
-        '5. Section markers like [Verse], [Chorus] should be omitted or merged into adjacent lines.\n'
-        '6. Do not add or invent new lyrics — only split or merge existing lines.'
+        f'1. Output EXACTLY {target_count} lines — no more, no less.\n'
+        '2. Keep each line short enough to read as a subtitle (max ~60 chars).\n'
+        '3. Preserve the original meaning and natural phrasing.\n'
+        '4. Section markers like [Verse], [Chorus] should be omitted or merged into adjacent lines.\n'
+        '5. Do not add or invent new lyrics — only split or merge existing lines.'
     )
     user = f'Redistribute into exactly {target_count} subtitle lines:\n\n{lyrics}'
+    schema = {
+        'type': 'object',
+        'properties': {
+            'lines': {'type': 'array', 'items': {'type': 'string'}}
+        },
+        'required': ['lines'],
+        'additionalProperties': False,
+    }
 
     try:
-        text = call_claude(system, user, max_tokens=2000)
-        parsed = extract_json(text)
+        parsed = call_claude_json(system, user, schema=schema, max_tokens=2000)
         lines = parsed.get('lines', [])
         if len(lines) != target_count:
             # 조정
