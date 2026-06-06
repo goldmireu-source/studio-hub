@@ -197,6 +197,7 @@ body{display:flex;min-height:100vh}
 <div class="main">
   <div class="topbar">
     <div class="tb-title" id="tb-title">가사 생성기</div>
+    <a href="/logout" style="font-size:11px;color:var(--m2);text-decoration:none;padding:4px 10px;border:1px solid var(--b1);border-radius:5px;font-family:var(--mono);transition:color .15s" onmouseover="this.style.color='var(--a2)'" onmouseout="this.style.color='var(--m2)'">로그아웃</a>
   </div>
   <div class="content">
 
@@ -1235,7 +1236,7 @@ body{display:flex;min-height:100vh}
 <!-- 설정 모달 -->
 <div class="modal-bg" id="settings-modal">
   <div class="modal">
-    <div class="modal-title">API 키 설정</div>
+    <div class="modal-title">설정</div>
     <div class="field">
       <label>Anthropic API Key (Claude)</label>
       <input id="api-key-input" type="password" placeholder="sk-ant-...">
@@ -1246,6 +1247,19 @@ body{display:flex;min-height:100vh}
       <button class="btn btn-g btn-sm" onclick="closeSettings()">닫기</button>
     </div>
     <div class="err" id="err-key"></div>
+    <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--b1)">
+      <div style="font-size:12px;color:var(--m2);margin-bottom:.6rem;letter-spacing:.04em">계정 변경</div>
+      <div class="field" style="margin-bottom:.6rem">
+        <label>새 아이디</label>
+        <input id="auth-user-input" type="text" autocomplete="off" placeholder="새 아이디">
+      </div>
+      <div class="field" style="margin-bottom:.6rem">
+        <label>새 비밀번호</label>
+        <input id="auth-pass-input" type="password" autocomplete="off" placeholder="새 비밀번호">
+      </div>
+      <button class="btn btn-g btn-sm" onclick="changeAuth()">계정 변경</button>
+      <div id="auth-msg" style="font-size:12px;margin-top:6px"></div>
+    </div>
   </div>
 </div>
 
@@ -1309,6 +1323,21 @@ function nav(el) {
 // ── 설정 ──────────────────────────────────────────────────────
 function openSettings() { document.getElementById('settings-modal').classList.add('open'); }
 function closeSettings() { document.getElementById('settings-modal').classList.remove('open'); }
+async function changeAuth() {
+  const user = document.getElementById('auth-user-input').value.trim();
+  const pass = document.getElementById('auth-pass-input').value.trim();
+  const msg  = document.getElementById('auth-msg');
+  if (!user || !pass) { msg.style.color='var(--a2)'; msg.textContent='아이디와 비밀번호를 모두 입력하세요.'; return; }
+  const r = await fetch('/api/settings/auth', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username:user, password:pass})});
+  const d = await r.json();
+  if (d.success) {
+    msg.style.color='var(--a3)'; msg.textContent='변경 완료. 다음 로그인부터 적용됩니다.';
+    document.getElementById('auth-user-input').value='';
+    document.getElementById('auth-pass-input').value='';
+  } else {
+    msg.style.color='var(--a2)'; msg.textContent=d.error||'오류 발생';
+  }
+}
 async function saveKey() {
   const key = document.getElementById('api-key-input').value.trim();
   if (!key) { showErr('err-key','키를 입력해주세요'); return; }

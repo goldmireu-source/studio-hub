@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Studio Hub — 로그인</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+KR:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#09090f;--s1:#111118;--s2:#17171f;
+  --b1:rgba(255,255,255,.06);--b2:rgba(255,255,255,.11);
+  --a1:#7c6fff;--a3:#6fffc4;--a2:#ff6fa0;
+  --tx:#eeeef8;--m2:#888899;
+  --mono:'Space Mono',monospace;--sans:'Noto Sans KR',sans-serif;
+}
+html,body{min-height:100vh;background:var(--bg);color:var(--tx);font-family:var(--sans)}
+body{display:flex;align-items:center;justify-content:center}
+.box{
+  background:var(--s1);border:1px solid var(--b2);border-radius:14px;
+  padding:2.5rem 2rem;width:100%;max-width:360px;
+}
+.logo{text-align:center;margin-bottom:2rem}
+.logo-title{font-family:var(--mono);font-size:20px;font-weight:700;letter-spacing:-.02em}
+.logo-title span{color:var(--a1)}
+.logo-sub{font-size:12px;color:var(--m2);margin-top:6px}
+.field{margin-bottom:1rem}
+.field label{display:block;font-size:11px;color:var(--m2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
+.field input{
+  width:100%;padding:10px 13px;background:var(--s2);
+  border:1px solid var(--b2);border-radius:7px;
+  color:var(--tx);font-family:var(--sans);font-size:14px;outline:none;
+  transition:border-color .2s;
+}
+.field input:focus{border-color:var(--a1)}
+.btn-login{
+  width:100%;margin-top:.5rem;padding:11px;
+  background:var(--a1);color:#fff;border:none;border-radius:7px;
+  font-size:14px;font-weight:500;font-family:var(--sans);
+  cursor:pointer;transition:opacity .18s;
+}
+.btn-login:hover{opacity:.85}
+.error{
+  background:rgba(255,111,160,.1);border:1px solid rgba(255,111,160,.25);
+  border-radius:7px;color:var(--a2);font-size:13px;
+  padding:9px 13px;margin-bottom:1rem;
+}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">
+    <div class="logo-title">Studio<span>Hub</span></div>
+    <div class="logo-sub">로그인이 필요합니다</div>
+  </div>
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+  <form method="POST" action="/login" autocomplete="on">
+    <div class="field">
+      <label>아이디</label>
+      <input type="text" name="username" autocomplete="username" autofocus required>
+    </div>
+    <div class="field">
+      <label>비밀번호</label>
+      <input type="password" name="password" autocomplete="current-password" required>
+    </div>
+    <button type="submit" class="btn-login">로그인</button>
+  </form>
+</div>
+</body>
+</html>

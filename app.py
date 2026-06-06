@@ -1,5 +1,7 @@
 import os, sys, json, time, threading, shutil, zipfile, urllib.request, re
-from flask import Flask, request, jsonify, send_file, render_template
+import hashlib, secrets
+from datetime import timedelta
+from flask import Flask, request, jsonify, send_file, render_template, session, redirect
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -69,6 +71,69 @@ def save_settings(data):
         os.environ['ANTHROPIC_API_KEY'] = data['anthropic_key']
 
 load_settings()
+
+# ── 인증 ─────────────────────────────────────────────────────
+def _hash_pw(pw):
+    return hashlib.sha256(pw.encode('utf-8')).hexdigest()
+
+def _init_auth():
+    s = load_settings()
+    changed = {}
+    if not s.get('secret_key'):
+        changed['secret_key'] = secrets.token_hex(32)
+    if not s.get('auth_user') or not s.get('auth_pass_hash'):
+        default_pw = 'studiohub2024'
+        changed['auth_user'] = 'admin'
+        changed['auth_pass_hash'] = _hash_pw(default_pw)
+        print(f'[AUTH] 기본 계정 생성: admin / {default_pw}  ← 설정에서 변경하세요')
+    if changed:
+        save_settings(changed)
+        s.update(changed)
+    return s
+
+_auth_cfg = _init_auth()
+app.secret_key = _auth_cfg['secret_key']
+app.permanent_session_lifetime = timedelta(days=30)
+
+@app.before_request
+def require_login():
+    pub = {'login', 'logout', 'static'}
+    if request.endpoint in pub:
+        return
+    if not session.get('logged_in'):
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Unauthorized', 'login_required': True}), 401
+        return redirect('/login')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        user = request.form.get('username', '').strip()
+        pw   = request.form.get('password', '')
+        s = load_settings()
+        if user == s.get('auth_user') and _hash_pw(pw) == s.get('auth_pass_hash', ''):
+            session.permanent = True
+            session['logged_in'] = True
+            session['username'] = user
+            return redirect('/')
+        error = '아이디 또는 비밀번호가 올바르지 않습니다.'
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/login')
+
+@app.route('/api/settings/auth', methods=['POST'])
+def api_change_auth():
+    data = request.json or {}
+    new_user = data.get('username', '').strip()
+    new_pass = data.get('password', '').strip()
+    if not new_user or not new_pass:
+        return jsonify({'success': False, 'error': '아이디와 비밀번호를 입력하세요'}), 400
+    save_settings({'auth_user': new_user, 'auth_pass_hash': _hash_pw(new_pass)})
+    return jsonify({'success': True})
 
 @app.route('/api/settings', methods=['POST'])
 def api_settings():
