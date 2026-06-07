@@ -216,7 +216,7 @@ def api_get_settings():
     return jsonify({'has_key': False})
 
 # ── Gemini API 헬퍼 ───────────────────────────────────────────
-GEMINI_MODEL = 'gemini-1.5-flash'
+GEMINI_MODEL = 'gemini-2.0-flash-lite'
 
 def _gemini_client():
     key = (load_settings() or {}).get('gemini_key', '').strip()
