@@ -216,7 +216,7 @@ def api_get_settings():
     return jsonify({'has_key': False})
 
 # ── Groq API 헬퍼 (텍스트 생성) ───────────────────────────────
-GROQ_MODEL = 'llama-3.3-70b-versatile'
+GROQ_MODEL = 'qwen/qwen3-32b'
 GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 def _groq_key():
