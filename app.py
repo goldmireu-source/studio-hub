@@ -261,7 +261,10 @@ call_claude = call_groq
 call_gemini = call_groq
 
 def call_groq_json(system, user, schema, max_tokens=2000, **_):
-    system_json = system + '\n\nReturn valid JSON only. No markdown, no explanation.'
+    schema_hint = json.dumps(schema, ensure_ascii=False)
+    system_json = (system
+        + f'\n\nYou MUST respond with valid JSON only, strictly matching this schema:\n{schema_hint}'
+        + '\nNo markdown, no explanation, no extra text outside the JSON.')
     text = call_groq(system_json, user, max_tokens=max_tokens, output_schema=schema)
     return json.loads(text)
 
