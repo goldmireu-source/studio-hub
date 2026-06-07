@@ -1017,7 +1017,7 @@ def download_audio(url, job_id):
 
     def _make_opts(extra={}):
         o = {
-            'format': '140/bestaudio[ext=m4a]/bestaudio/best',
+            'format': 'bestaudio/best',
             'outtmpl': os.path.join(DOWNLOAD_DIR, '%(id)s.%(ext)s'),
             'postprocessors': [{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'192'}],
             'ffmpeg_location': FFMPEG_DIR,
@@ -1037,16 +1037,28 @@ def download_audio(url, job_id):
         info = None
         last_err = None
 
-        # 클라이언트별 순서대로 시도 (iOS/Android는 서버 IP 차단 우회에 효과적)
-        for client in ('ios', 'android', 'web'):
+        # 시도 순서: 쿠키+mweb → 쿠키+android_music → 쿠키+web → 쿠키 없이 web
+        attempts = [
+            {'extractor_args': {'youtube': {'player_client': ['mweb']}}},
+            {'extractor_args': {'youtube': {'player_client': ['android_music']}}},
+            {'extractor_args': {'youtube': {'player_client': ['web']}}},
+        ]
+        for extra in attempts:
             try:
-                info = _run_download(_make_opts({
-                    'extractor_args': {'youtube': {'player_client': [client]}}
-                }))
+                info = _run_download(_make_opts(extra))
                 break
             except Exception as e:
                 last_err = e
                 continue
+
+        # 최후 수단: 쿠키 없이 web
+        if info is None:
+            try:
+                opts_no_cookie = _make_opts({'extractor_args': {'youtube': {'player_client': ['web']}}})
+                opts_no_cookie.pop('cookiefile', None)
+                info = _run_download(opts_no_cookie)
+            except Exception as e:
+                last_err = e
 
         if info is None:
             raise last_err
