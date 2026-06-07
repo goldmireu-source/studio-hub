@@ -2107,11 +2107,7 @@ function cpFromStore(btn) {
   const idx = parseInt(btn.dataset.idx);
   const text = lyricsStore[lang] && lyricsStore[lang][idx] ? lyricsStore[lang][idx].lyrics : '';
   if (!text) return;
-  navigator.clipboard.writeText(text).then(() => {
-    btn.textContent = '복사됨 ✓';
-    btn.classList.add('ok');
-    setTimeout(() => { btn.textContent = '복사'; btn.classList.remove('ok'); }, 1800);
-  });
+  _clipCopy(text, btn);
 }
 
 async function applyEdit(lang, idx) {
