@@ -1280,7 +1280,8 @@ def download_audio(url, job_id):
         'format': 'bestaudio/best',
         'outtmpl': os.path.join(DOWNLOAD_DIR, '%(id)s.%(ext)s'),
         'postprocessors': [{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'192'}],
-        'ffmpeg_location': FFMPEG_DIR, 'progress_hooks': [hook],
+        'ffmpeg_location': FFMPEG_DIR if os.path.exists(os.path.join(FFMPEG_DIR, 'ffmpeg')) or os.path.exists(os.path.join(FFMPEG_DIR, 'ffmpeg.exe')) else None,
+        'progress_hooks': [hook],
         'quiet': True, 'no_warnings': True,
     }
     cookie_extra = {'cookiefile': COOKIES_FILE} if os.path.exists(COOKIES_FILE) else {}

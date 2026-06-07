@@ -16,6 +16,7 @@ jobs:
           script: |
             cd ~/studio_app
             git pull origin main
+            sudo apt-get install -y ffmpeg 2>/dev/null || true
             source venv/bin/activate && pip install -U yt-dlp pysocks yt-dlp-youtube-oauth2
 
             # Cloudflare WARP 설치 (최초 1회, 올바른 도메인: pkg.cloudflareclient.com)
