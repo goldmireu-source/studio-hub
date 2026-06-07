@@ -1020,10 +1020,22 @@ def download_audio(url, job_id):
         'ffmpeg_location': FFMPEG_DIR,
         'progress_hooks': [hook],
         'quiet': True, 'no_warnings': True,
+        'cookiesfrombrowser': ('chrome',),
     }
+    def _run_download(ydl_opts):
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            return ydl.extract_info(url, download=True)
+
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=True)
+        try:
+            info = _run_download(opts)
+        except Exception as cookie_err:
+            if 'cookie' in str(cookie_err).lower() or 'Sign in' in str(cookie_err):
+                fallback_opts = {**opts}
+                del fallback_opts['cookiesfrombrowser']
+                info = _run_download(fallback_opts)
+            else:
+                raise
         entries = info.get('entries') if 'entries' in info else [info]
         tracks, cum = [], 0
         for i, e in enumerate(entries):
