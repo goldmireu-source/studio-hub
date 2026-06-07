@@ -261,9 +261,15 @@ call_claude = call_groq
 call_gemini = call_groq
 
 def call_groq_json(system, user, schema, max_tokens=2000, **_):
-    # 최상위 키 이름만 힌트로 전달 — 전체 스키마는 모델을 압도해 내용 비움 유발
-    keys = list((schema or {}).get('properties', {}).keys())
-    fmt = '{' + ', '.join(f'"{k}": ...' for k in keys) + '}' if keys else '{...}'
+    # 배열 항목까지 포함한 최소 예시 힌트 — 타입 정보 없이 구조만 전달
+    props = (schema or {}).get('properties', {})
+    arr_key = next((k for k, v in props.items() if isinstance(v, dict) and v.get('type') == 'array'), None)
+    if arr_key:
+        item_props = props[arr_key].get('items', {}).get('properties', {})
+        item_ex = {k: '...' for k in item_props} if item_props else {'item': '...'}
+        fmt = json.dumps({arr_key: [item_ex]}, ensure_ascii=False)
+    else:
+        fmt = json.dumps({k: '...' for k in props}, ensure_ascii=False) if props else '{...}'
     system_json = (system
         + f'\n\nRespond with ONLY valid JSON in this format: {fmt}'
         + '\nNo markdown, no explanation, no extra text.')
@@ -1432,8 +1438,14 @@ def generate_lyrics():
                 return False
 
             def normalize_songs(songs):
+                if not isinstance(songs, list):
+                    songs = list(songs.values()) if isinstance(songs, dict) else []
                 for i, s in enumerate(songs):
+                    if not isinstance(s, dict): continue
                     lyr = s.get('lyrics', '')
+                    if isinstance(lyr, dict):
+                        lyr = '\n'.join(str(v) for v in lyr.values() if v)
+                    lyr = str(lyr) if not isinstance(lyr, str) else lyr
                     lyr = lyr.replace('\r\n','\n').replace('\r','\n')
                     if '\\n' in lyr: lyr = lyr.replace('\\n','\n')
                     s['lyrics'] = lyr
