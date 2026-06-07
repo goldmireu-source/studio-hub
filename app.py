@@ -1013,16 +1013,21 @@ def download_audio(url, job_id):
         elif d['status'] == 'finished':
             job_store[job_id]['percent'] = 90
 
-    base_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': os.path.join(DOWNLOAD_DIR, '%(id)s.%(ext)s'),
-        'postprocessors': [{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'192'}],
-        'ffmpeg_location': FFMPEG_DIR,
-        'progress_hooks': [hook],
-        'quiet': True, 'no_warnings': True,
-    }
-
     COOKIES_FILE = os.path.join(os.path.dirname(__file__), 'cookies.txt')
+
+    def _make_opts(extra={}):
+        o = {
+            'format': 'bestaudio/best',
+            'outtmpl': os.path.join(DOWNLOAD_DIR, '%(id)s.%(ext)s'),
+            'postprocessors': [{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'192'}],
+            'ffmpeg_location': FFMPEG_DIR,
+            'progress_hooks': [hook],
+            'quiet': True, 'no_warnings': True,
+        }
+        if os.path.exists(COOKIES_FILE):
+            o['cookiefile'] = COOKIES_FILE
+        o.update(extra)
+        return o
 
     def _run_download(ydl_opts):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1032,29 +1037,16 @@ def download_audio(url, job_id):
         info = None
         last_err = None
 
-        # 1) cookies.txt 파일 우선 (사용자가 직접 내보낸 경우)
-        if os.path.exists(COOKIES_FILE):
+        # 클라이언트별 순서대로 시도 (iOS/Android는 서버 IP 차단 우회에 효과적)
+        for client in ('ios', 'android', 'web'):
             try:
-                info = _run_download({**base_opts, 'cookiefile': COOKIES_FILE})
+                info = _run_download(_make_opts({
+                    'extractor_args': {'youtube': {'player_client': [client]}}
+                }))
+                break
             except Exception as e:
                 last_err = e
-
-        # 2) 브라우저별 쿠키 순서대로 시도
-        if info is None:
-            for browser in ('chrome', 'edge', 'firefox', 'brave'):
-                try:
-                    info = _run_download({**base_opts, 'cookiesfrombrowser': (browser,)})
-                    break
-                except Exception as e:
-                    last_err = e
-                    continue
-
-        # 3) 쿠키 없이 시도
-        if info is None:
-            try:
-                info = _run_download(base_opts)
-            except Exception as e:
-                last_err = e
+                continue
 
         if info is None:
             raise last_err

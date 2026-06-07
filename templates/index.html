@@ -3470,8 +3470,7 @@ function showErr(id,msg){
     msg = '⚡ Anthropic 서버가 일시적으로 과부하 상태입니다. 잠시 후(1~2분) 다시 시도해주세요.';
   }
   if(msg && (msg.toLowerCase().includes('sign in') || msg.toLowerCase().includes('bot'))) {
-    msg = '🔒 YouTube 봇 감지 오류: 앱 폴더에 cookies.txt 파일을 넣으면 해결됩니다.\n'
-        + '브라우저에서 "Get cookies.txt LOCALLY" 확장 프로그램으로 youtube.com 쿠키를 내보낸 뒤 cookies.txt로 저장하세요.';
+    msg = '🔒 YouTube 봇 감지 오류 (서버 IP 차단)\n원본 오류: ' + msg;
   }
   el.textContent=msg;
   el.style.display=msg?'block':'none';
