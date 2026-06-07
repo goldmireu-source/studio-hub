@@ -1506,9 +1506,15 @@ def generate_lyrics():
                 'You are a professional Korean hip-hop lyricist. '
                 'You write like top-tier Korean rap artists — sharp, specific, rhythmic, street-authentic. '
                 f'Generate {count} Korean hip-hop song(s). '
-                'CRITICAL: Write ONLY in Korean (Hangul). '
-                'ABSOLUTELY NO Chinese characters (汉字), Japanese characters (kanji/hiragana/katakana), or any non-Korean script. '
-                'Every single word must be in pure Korean (한글) only.'
+                '!!! LANGUAGE RULE — ABSOLUTE, NO EXCEPTIONS !!!\n'
+                'Use ONLY Korean Hangul (한글) characters.\n'
+                'FORBIDDEN — any of these will FAIL the task:\n'
+                '- Chinese characters (全, 部, 答 etc.)\n'
+                '- Japanese (kanji, hiragana, katakana)\n'
+                '- Spanish, English, or ANY foreign words (no "corazón", no "amor", no "baby")\n'
+                '- Any non-Hangul script whatsoever\n'
+                'If a concept has no Korean word, describe it in Korean instead. '
+                'Every single character must be Korean Hangul or Korean punctuation only.'
             )
             ko_user = (
                 f'Genre/Style: {genre}\nMood: {mood}\nTheme: {theme}\n'
