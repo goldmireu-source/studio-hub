@@ -1128,7 +1128,7 @@ def download_audio(url, job_id):
         except Exception as ce:
             print(f'[cobalt] failed: {ce}')
 
-    # 플레이리스트 또는 cobalt 실패 시 yt-dlp fallback
+    # yt-dlp fallback — WARP 프록시(Cloudflare) 우선
     def hook(d):
         if d['status'] == 'downloading':
             try: job_store[job_id]['percent'] = float(d.get('_percent_str','0%').strip().replace('%',''))
@@ -1144,18 +1144,20 @@ def download_audio(url, job_id):
         'ffmpeg_location': FFMPEG_DIR, 'progress_hooks': [hook],
         'quiet': True, 'no_warnings': True,
     }
+    cookie_extra = {'cookiefile': COOKIES_FILE} if os.path.exists(COOKIES_FILE) else {}
+
     def _run_download(extra={}):
         with yt_dlp.YoutubeDL({**base, **extra}) as ydl:
             return ydl.extract_info(url, download=True)
 
     try:
         info = None; last_err = None
-        for extra in (
-            {'username': 'oauth2', 'password': ''} if _oauth2_is_authorized() else None,
-            {'cookiefile': COOKIES_FILE} if os.path.exists(COOKIES_FILE) else None,
-            {},
-        ):
-            if extra is None: continue
+        attempts = [
+            {**cookie_extra, 'proxy': 'socks5://127.0.0.1:40000'},  # WARP
+            {**cookie_extra, 'proxy': 'socks5://127.0.0.1:9050'},   # Tor
+            {**cookie_extra},                                         # 직접
+        ]
+        for extra in attempts:
             try: info = _run_download(extra); break
             except Exception as e: last_err = e; print(f'[yt] {extra} err={e}')
 

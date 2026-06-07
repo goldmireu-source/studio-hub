@@ -16,6 +16,18 @@ jobs:
             cd ~/studio_app
             git pull origin main
             source venv/bin/activate && pip install -U yt-dlp pysocks yt-dlp-youtube-oauth2
-            which tor || (sudo apt-get install -y tor && sudo systemctl enable tor)
-            sudo systemctl start tor || true
+
+            # Cloudflare WARP 설치 (최초 1회)
+            if ! command -v warp-cli > /dev/null 2>&1; then
+              curl -fsSL https://pkg.cloudflaresns.com/cloudflare-main.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloudflare-main.gpg
+              CODENAME=$(lsb_release -cs)
+              echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflaresns.com/warp/ubuntu/ ${CODENAME} main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+              sudo apt-get update -qq && sudo apt-get install -y cloudflare-warp
+              warp-cli --accept-tos registration new
+              warp-cli mode proxy
+              warp-cli connect
+            fi
+            sudo systemctl start warp-svc || true
+            warp-cli connect || true
+
             sudo systemctl restart studio-hub
