@@ -1248,6 +1248,12 @@ def yt_debug():
         result['cookies'] = {'size': size, 'first_line': first_line}
     else:
         result['cookies'] = None
+    # WARP 연결 확인
+    try:
+        s = socket.create_connection(('127.0.0.1', 40000), timeout=2)
+        s.close()
+        result['warp'] = 'running'
+    except: result['warp'] = 'not running'
     return jsonify(result)
 
 @app.route('/api/yt/download', methods=['POST'])
