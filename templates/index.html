@@ -1255,11 +1255,6 @@ body{display:flex;min-height:100vh}
   <div class="modal">
     <div class="modal-title">설정</div>
     <div class="field">
-      <label>Anthropic API Key (Claude)</label>
-      <input id="api-key-input" type="password" placeholder="sk-ant-...">
-      <div style="font-size:11px;color:var(--m2);margin-top:4px">console.anthropic.com 에서 발급</div>
-    </div>
-    <div class="field" style="margin-top:.75rem">
       <label>Gemini API Key</label>
       <input id="gemini-key-input" type="password" placeholder="AIza...">
       <div style="font-size:11px;color:var(--m2);margin-top:4px">aistudio.google.com/app/apikey 에서 발급 (트랙 분석 기능에 사용)</div>
@@ -1361,20 +1356,14 @@ async function changeAuth() {
   }
 }
 async function saveKey() {
-  const key = document.getElementById('api-key-input').value.trim();
   const geminiKey = document.getElementById('gemini-key-input').value.trim();
-  if (!key && !geminiKey) { showErr('err-key','키를 입력해주세요'); return; }
-  const payload = {};
-  if (key) payload.anthropic_key = key;
-  if (geminiKey) payload.gemini_key = geminiKey;
-  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  if (key) localStorage.setItem('ak', key);
-  if (geminiKey) localStorage.setItem('gemini_key', geminiKey);
+  if (!geminiKey) { showErr('err-key','키를 입력해주세요'); return; }
+  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gemini_key:geminiKey})});
+  localStorage.setItem('gemini_key', geminiKey);
   closeSettings();
   checkKeyStatus();
 }
 window.addEventListener('load',()=>{
-  const k=localStorage.getItem('ak'); if(k) document.getElementById('api-key-input').value=k;
   const gk=localStorage.getItem('gemini_key'); if(gk) document.getElementById('gemini-key-input').value=gk;
 });
 
