@@ -584,11 +584,21 @@ body{display:flex;min-height:100vh}
           <button class="btn btn-p" id="yt-btn" onclick="ytDownload()">변환 시작</button>
           <div class="err" id="err-yt"></div>
           <div class="prog" id="prog-yt"><div class="prog-txt" id="prog-yt-txt">추출 중...</div><div class="prog-bar"><div class="prog-fill"></div></div></div>
-          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--b2)">
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--b2);display:flex;flex-direction:column;gap:8px">
             <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--m2)">
               <span id="yt-cookie-status">쿠키 확인 중...</span>
               <label style="cursor:pointer;color:var(--a1);text-decoration:underline" for="yt-cookie-input">cookies.txt 업로드</label>
               <input type="file" id="yt-cookie-input" accept=".txt" style="display:none" onchange="uploadCookies(this)">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--m2)">
+              <span id="yt-oauth2-status">OAuth2: 확인 중...</span>
+              <button class="btn btn-g btn-sm" id="yt-oauth2-btn" onclick="startOAuth2()" style="display:none">Google 계정 연결</button>
+            </div>
+            <div id="yt-oauth2-guide" style="display:none;background:rgba(99,179,237,.1);border:1px solid rgba(99,179,237,.3);border-radius:6px;padding:10px;font-size:12px;line-height:1.8">
+              <div>1. 아래 링크를 브라우저에서 여세요:</div>
+              <a id="yt-oauth2-url" href="#" target="_blank" style="color:var(--a1);word-break:break-all"></a>
+              <div>2. 코드 입력: <strong id="yt-oauth2-code" style="color:var(--a4);font-size:14px;letter-spacing:2px"></strong></div>
+              <div style="margin-top:6px;color:var(--m2)">인증 완료 후 자동으로 연결됩니다...</div>
             </div>
           </div>
         </div>
@@ -2345,8 +2355,49 @@ async function checkCookieStatus() {
     const r = await fetch('/api/yt/cookies-status');
     const d = await r.json();
     const el = document.getElementById('yt-cookie-status');
-    if (el) el.textContent = d.exists ? '✅ 쿠키 등록됨' : '⚠️ 쿠키 없음 (봇 감지 시 업로드 필요)';
+    if (el) el.textContent = d.exists ? '✅ 쿠키 등록됨' : '⚠️ 쿠키 없음';
   } catch(e) {}
+}
+
+let oauth2PollTimer = null;
+async function checkOAuth2Status() {
+  try {
+    const r = await fetch('/api/yt/oauth2-status');
+    const d = await r.json();
+    const statusEl = document.getElementById('yt-oauth2-status');
+    const btn = document.getElementById('yt-oauth2-btn');
+    const guide = document.getElementById('yt-oauth2-guide');
+    if (!statusEl) return;
+    if (d.status === 'authorized') {
+      statusEl.textContent = '✅ Google 계정 연결됨';
+      btn.style.display = 'none';
+      guide.style.display = 'none';
+      if (oauth2PollTimer) { clearInterval(oauth2PollTimer); oauth2PollTimer = null; }
+    } else if (d.status === 'waiting' && d.auth_url) {
+      statusEl.textContent = '⏳ Google 계정 인증 대기 중';
+      guide.style.display = 'block';
+      btn.style.display = 'none';
+      document.getElementById('yt-oauth2-url').href = d.auth_url;
+      document.getElementById('yt-oauth2-url').textContent = d.auth_url;
+      if (d.user_code) document.getElementById('yt-oauth2-code').textContent = d.user_code;
+    } else if (d.status === 'error') {
+      statusEl.textContent = '❌ 인증 오류: ' + (d.error||'');
+      btn.style.display = 'inline-block';
+      guide.style.display = 'none';
+      if (oauth2PollTimer) { clearInterval(oauth2PollTimer); oauth2PollTimer = null; }
+    } else {
+      statusEl.textContent = 'OAuth2: 미연결';
+      btn.style.display = 'inline-block';
+    }
+  } catch(e) {}
+}
+
+async function startOAuth2() {
+  document.getElementById('yt-oauth2-status').textContent = '⏳ 인증 시작 중...';
+  document.getElementById('yt-oauth2-btn').style.display = 'none';
+  await fetch('/api/yt/oauth2-init', {method:'POST'});
+  if (oauth2PollTimer) clearInterval(oauth2PollTimer);
+  oauth2PollTimer = setInterval(checkOAuth2Status, 3000);
 }
 
 async function uploadCookies(input) {
@@ -3664,6 +3715,7 @@ document.addEventListener('click', (e) => {
 window.addEventListener('DOMContentLoaded', () => {
   setTimeout(restoreSession, 300);
   checkCookieStatus();
+  checkOAuth2Status();
 });
 // ────────────────────────────────────────────────────────────
 

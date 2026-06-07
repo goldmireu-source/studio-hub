@@ -17,6 +17,38 @@ for d in [DOWNLOAD_DIR, FFMPEG_DIR, DATA_DIR]:
     os.makedirs(d, exist_ok=True)
 
 job_store = {}
+oauth2_state = {'status': 'idle', 'auth_url': None, 'user_code': None, 'error': None}
+
+class _OAuth2Logger:
+    def _check(self, msg):
+        if not msg: return
+        if 'google.com/device' in msg or 'accounts.google.com/device' in msg:
+            url = re.search(r'https://\S+', msg)
+            if url: oauth2_state['auth_url'] = url.group().rstrip('.')
+            oauth2_state['status'] = 'waiting'
+        m = re.search(r'\b([A-Z]{4}-[A-Z]{4})\b', msg)
+        if m: oauth2_state['user_code'] = m.group(1)
+    def debug(self, msg): self._check(msg)
+    def info(self, msg): self._check(msg)
+    def warning(self, msg): pass
+    def error(self, msg):
+        oauth2_state['status'] = 'error'; oauth2_state['error'] = msg
+
+def _run_oauth2_init():
+    import yt_dlp
+    oauth2_state.update({'status': 'starting', 'auth_url': None, 'user_code': None, 'error': None})
+    try:
+        with yt_dlp.YoutubeDL({
+            'username': 'oauth2', 'password': '',
+            'logger': _OAuth2Logger(), 'quiet': True,
+        }) as ydl:
+            ydl.extract_info('https://www.youtube.com/watch?v=dQw4w9WgXcQ', download=False)
+        oauth2_state['status'] = 'authorized'
+    except Exception as e:
+        err = str(e)
+        if oauth2_state['status'] not in ('waiting', 'authorized'):
+            oauth2_state['status'] = 'error'
+            oauth2_state['error'] = err
 
 # ── ffmpeg 자동 설치 ──────────────────────────────────────────
 def setup_ffmpeg():
@@ -1015,42 +1047,54 @@ def download_audio(url, job_id):
 
     COOKIES_FILE = os.path.join(os.path.dirname(__file__), 'cookies.txt')
 
-    def _make_opts(extra={}, use_proxy=True):
-        o = {
-            'format': 'bestaudio/best',
-            'outtmpl': os.path.join(DOWNLOAD_DIR, '%(id)s.%(ext)s'),
-            'postprocessors': [{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'192'}],
-            'ffmpeg_location': FFMPEG_DIR,
-            'progress_hooks': [hook],
-            'quiet': True, 'no_warnings': True,
-        }
-        if os.path.exists(COOKIES_FILE):
-            o['cookiefile'] = COOKIES_FILE
-        if use_proxy:
-            o['proxy'] = 'socks5://127.0.0.1:9050'
-        o.update(extra)
-        return o
+    base = {
+        'format': 'bestaudio/best',
+        'outtmpl': os.path.join(DOWNLOAD_DIR, '%(id)s.%(ext)s'),
+        'postprocessors': [{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'192'}],
+        'ffmpeg_location': FFMPEG_DIR,
+        'progress_hooks': [hook],
+        'quiet': True, 'no_warnings': True,
+    }
 
-    def _run_download(ydl_opts):
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    def _run_download(extra={}):
+        opts = {**base, **extra}
+        with yt_dlp.YoutubeDL(opts) as ydl:
             return ydl.extract_info(url, download=True)
 
     try:
         info = None
         last_err = None
 
-        # Tor 프록시로 시도 → 실패 시 직접 연결
-        for use_proxy in (True, False):
-            for extra in ({}, {'extractor_args': {'youtube': {'player_client': ['mweb']}}}):
-                try:
-                    info = _run_download(_make_opts(extra, use_proxy=use_proxy))
-                    break
-                except Exception as e:
-                    last_err = e
-                    print(f'[yt] proxy={use_proxy} client={extra} err={e}')
-                    continue
-            if info is not None:
-                break
+        # 1) OAuth2 인증된 경우 우선 시도
+        if oauth2_state['status'] == 'authorized':
+            try:
+                info = _run_download({'username': 'oauth2', 'password': ''})
+            except Exception as e:
+                last_err = e
+                print(f'[yt] oauth2 err={e}')
+
+        # 2) cookies.txt + Tor 프록시
+        if info is None and os.path.exists(COOKIES_FILE):
+            try:
+                info = _run_download({'cookiefile': COOKIES_FILE, 'proxy': 'socks5://127.0.0.1:9050'})
+            except Exception as e:
+                last_err = e
+                print(f'[yt] cookie+tor err={e}')
+
+        # 3) cookies.txt 직접 연결
+        if info is None and os.path.exists(COOKIES_FILE):
+            try:
+                info = _run_download({'cookiefile': COOKIES_FILE})
+            except Exception as e:
+                last_err = e
+                print(f'[yt] cookie err={e}')
+
+        # 4) 그냥 시도
+        if info is None:
+            try:
+                info = _run_download()
+            except Exception as e:
+                last_err = e
 
         if info is None:
             raise last_err
@@ -1100,6 +1144,18 @@ def yt_upload_cookies():
     cookies_path = os.path.join(os.path.dirname(__file__), 'cookies.txt')
     f.save(cookies_path)
     return jsonify({'ok': True})
+
+@app.route('/api/yt/oauth2-init', methods=['POST'])
+def yt_oauth2_init():
+    if oauth2_state['status'] in ('starting', 'waiting'):
+        return jsonify(oauth2_state)
+    t = threading.Thread(target=_run_oauth2_init)
+    t.daemon = True; t.start()
+    return jsonify({'status': 'starting'})
+
+@app.route('/api/yt/oauth2-status')
+def yt_oauth2_status():
+    return jsonify(oauth2_state)
 
 @app.route('/api/yt/cookies-status')
 def yt_cookies_status():
