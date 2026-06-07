@@ -1097,6 +1097,19 @@ def cleanArtist(a):
     if not a or a.strip().lower() == 'unknown': return ''
     return a.strip()
 
+@app.route('/api/yt/upload-cookies', methods=['POST'])
+def yt_upload_cookies():
+    f = request.files.get('cookies')
+    if not f: return jsonify({'error':'파일 없음'}), 400
+    cookies_path = os.path.join(os.path.dirname(__file__), 'cookies.txt')
+    f.save(cookies_path)
+    return jsonify({'ok': True})
+
+@app.route('/api/yt/cookies-status')
+def yt_cookies_status():
+    cookies_path = os.path.join(os.path.dirname(__file__), 'cookies.txt')
+    return jsonify({'exists': os.path.exists(cookies_path)})
+
 @app.route('/api/yt/download', methods=['POST'])
 def yt_download():
     url = request.json.get('url','').strip()

@@ -584,6 +584,13 @@ body{display:flex;min-height:100vh}
           <button class="btn btn-p" id="yt-btn" onclick="ytDownload()">변환 시작</button>
           <div class="err" id="err-yt"></div>
           <div class="prog" id="prog-yt"><div class="prog-txt" id="prog-yt-txt">추출 중...</div><div class="prog-bar"><div class="prog-fill"></div></div></div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--b2)">
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--m2)">
+              <span id="yt-cookie-status">쿠키 확인 중...</span>
+              <label style="cursor:pointer;color:var(--a1);text-decoration:underline" for="yt-cookie-input">cookies.txt 업로드</label>
+              <input type="file" id="yt-cookie-input" accept=".txt" style="display:none" onchange="uploadCookies(this)">
+            </div>
+          </div>
         </div>
         <!-- MP3 업로드 -->
         <div class="card">
@@ -2333,6 +2340,33 @@ async function trApplyEdit(lang) {
 }
 
 // ── YT MP3 ───────────────────────────────────────────────────
+async function checkCookieStatus() {
+  try {
+    const r = await fetch('/api/yt/cookies-status');
+    const d = await r.json();
+    const el = document.getElementById('yt-cookie-status');
+    if (el) el.textContent = d.exists ? '✅ 쿠키 등록됨' : '⚠️ 쿠키 없음 (봇 감지 시 업로드 필요)';
+  } catch(e) {}
+}
+
+async function uploadCookies(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('cookies', file);
+  try {
+    const r = await fetch('/api/yt/upload-cookies', {method:'POST', body: fd});
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('yt-cookie-status').textContent = '✅ 쿠키 등록됨';
+      showErr('err-yt', '');
+    } else {
+      showErr('err-yt', '쿠키 업로드 실패: ' + (d.error||''));
+    }
+  } catch(e) { showErr('err-yt', '업로드 오류: ' + e.message); }
+  input.value = '';
+}
+
 async function ytDownload() {
   const url=document.getElementById('yt-url').value.trim();
   if(!url){showErr('err-yt','URL을 입력해주세요');return;}
@@ -3630,6 +3664,7 @@ document.addEventListener('click', (e) => {
 // 페이지 로드 시 복원 (DOM 준비 후)
 window.addEventListener('DOMContentLoaded', () => {
   setTimeout(restoreSession, 300);
+  checkCookieStatus();
 });
 // ────────────────────────────────────────────────────────────
 
