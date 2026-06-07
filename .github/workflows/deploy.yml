@@ -12,22 +12,19 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ubuntu
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: COBALT_API_KEY
           script: |
             cd ~/studio_app
             git pull origin main
             source venv/bin/activate && pip install -U yt-dlp pysocks yt-dlp-youtube-oauth2
 
-            # Cloudflare WARP 설치 (최초 1회)
-            if ! command -v warp-cli > /dev/null 2>&1; then
-              curl -fsSL https://pkg.cloudflaresns.com/cloudflare-main.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloudflare-main.gpg
-              CODENAME=$(lsb_release -cs)
-              echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflaresns.com/warp/ubuntu/ ${CODENAME} main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
-              sudo apt-get update -qq && sudo apt-get install -y cloudflare-warp
-              warp-cli --accept-tos registration new
-              warp-cli mode proxy
-              warp-cli connect
+            # COBALT_API_KEY를 systemd 서비스 환경변수에 저장
+            if [ -n "$COBALT_API_KEY" ]; then
+              sudo mkdir -p /etc/systemd/system/studio-hub.service.d
+              printf '[Service]\nEnvironment="COBALT_API_KEY=%s"\n' "$COBALT_API_KEY" | sudo tee /etc/systemd/system/studio-hub.service.d/cobalt.conf > /dev/null
+              sudo systemctl daemon-reload
             fi
-            sudo systemctl start warp-svc || true
-            warp-cli connect || true
 
             sudo systemctl restart studio-hub
+        env:
+          COBALT_API_KEY: ${{ secrets.COBALT_API_KEY }}

@@ -1074,13 +1074,20 @@ def _cobalt_download(url, video_id, job_id):
     job_store[job_id]['percent'] = 20
 
     # cobalt.tools API로 오디오 URL 요청
+    cobalt_key = os.environ.get('COBALT_API_KEY', '').strip()
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+    if cobalt_key:
+        headers['Authorization'] = f'Api-Key {cobalt_key}'
     c = req.post('https://api.cobalt.tools/',
                  json={'url': url, 'downloadMode': 'audio', 'audioFormat': 'mp3', 'audioBitrate': '192'},
-                 headers={'Accept': 'application/json', 'Content-Type': 'application/json'},
+                 headers=headers,
                  timeout=30)
     cd = c.json()
     if cd.get('status') not in ('tunnel', 'redirect', 'stream'):
-        raise Exception(f"cobalt: {cd.get('error', {}).get('code', str(cd))}")
+        err_code = cd.get('error', {}).get('code', str(cd))
+        if 'auth' in err_code:
+            raise Exception(f"cobalt 인증 필요: {err_code}. cobalt.tools에서 API 키 발급 후 COBALT_API_KEY 환경변수에 설정하세요")
+        raise Exception(f"cobalt: {err_code}")
 
     job_store[job_id]['percent'] = 40
 
