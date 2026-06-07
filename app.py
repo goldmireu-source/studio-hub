@@ -752,6 +752,11 @@ def analyze_track():
         if result.get('analysis'):
             pass  # already set
 
+    except Exception as e:
+        import traceback
+        result['success'] = False
+        result['error'] = str(e)
+        print(f'[analyze_track ERROR]\n{traceback.format_exc()}')
     finally:
         try:
             os.unlink(tmp_path)
