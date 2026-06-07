@@ -1106,6 +1106,34 @@ def yt_cookies_status():
     cookies_path = os.path.join(os.path.dirname(__file__), 'cookies.txt')
     return jsonify({'exists': os.path.exists(cookies_path)})
 
+@app.route('/api/yt/debug')
+def yt_debug():
+    import socket
+    result = {}
+    # yt-dlp 버전
+    try:
+        import yt_dlp
+        result['yt_dlp_version'] = yt_dlp.version.__version__
+    except: result['yt_dlp_version'] = 'unknown'
+    # Tor 연결 확인
+    try:
+        s = socket.create_connection(('127.0.0.1', 9050), timeout=2)
+        s.close()
+        result['tor'] = 'running'
+    except: result['tor'] = 'not running'
+    # 쿠키 파일 확인
+    cookies_path = os.path.join(os.path.dirname(__file__), 'cookies.txt')
+    if os.path.exists(cookies_path):
+        size = os.path.getsize(cookies_path)
+        try:
+            with open(cookies_path) as f:
+                first_line = f.readline().strip()
+        except: first_line = '(read error)'
+        result['cookies'] = {'size': size, 'first_line': first_line}
+    else:
+        result['cookies'] = None
+    return jsonify(result)
+
 @app.route('/api/yt/download', methods=['POST'])
 def yt_download():
     url = request.json.get('url','').strip()
