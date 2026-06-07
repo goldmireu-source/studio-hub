@@ -149,7 +149,7 @@ app.permanent_session_lifetime = timedelta(days=30)
 
 @app.before_request
 def require_login():
-    pub = {'login', 'logout', 'static'}
+    pub = {'login', 'logout', 'static', 'yt_oauth2_status', 'yt_debug'}
     if request.endpoint in pub:
         return
     if not session.get('logged_in'):
