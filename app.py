@@ -1015,7 +1015,7 @@ def download_audio(url, job_id):
 
     COOKIES_FILE = os.path.join(os.path.dirname(__file__), 'cookies.txt')
 
-    def _make_opts(extra={}):
+    def _make_opts(extra={}, use_proxy=True):
         o = {
             'format': 'bestaudio/best',
             'outtmpl': os.path.join(DOWNLOAD_DIR, '%(id)s.%(ext)s'),
@@ -1026,6 +1026,8 @@ def download_audio(url, job_id):
         }
         if os.path.exists(COOKIES_FILE):
             o['cookiefile'] = COOKIES_FILE
+        if use_proxy:
+            o['proxy'] = 'socks5://127.0.0.1:9050'
         o.update(extra)
         return o
 
@@ -1037,23 +1039,18 @@ def download_audio(url, job_id):
         info = None
         last_err = None
 
-        # 시도 순서 (최신 yt-dlp 기준 우회 효과 높은 순)
-        attempts = [
-            {'extractor_args': {'youtube': {'player_client': ['tv_creator']}}},
-            {'extractor_args': {'youtube': {'player_client': ['web_creator']}}},
-            {'extractor_args': {'youtube': {'player_client': ['mweb']}}},
-            {'extractor_args': {'youtube': {'player_client': ['android_music']}}},
-            {'extractor_args': {'youtube': {'player_client': ['web']}}},
-            {},  # 기본값
-        ]
-        for extra in attempts:
-            try:
-                info = _run_download(_make_opts(extra))
+        # Tor 프록시로 시도 → 실패 시 직접 연결
+        for use_proxy in (True, False):
+            for extra in ({}, {'extractor_args': {'youtube': {'player_client': ['mweb']}}}):
+                try:
+                    info = _run_download(_make_opts(extra, use_proxy=use_proxy))
+                    break
+                except Exception as e:
+                    last_err = e
+                    print(f'[yt] proxy={use_proxy} client={extra} err={e}')
+                    continue
+            if info is not None:
                 break
-            except Exception as e:
-                last_err = e
-                print(f'[yt] client={extra} err={e}')
-                continue
 
         if info is None:
             raise last_err
