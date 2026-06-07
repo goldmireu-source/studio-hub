@@ -563,7 +563,7 @@ def analyze_track():
             result['audio']['librosa_error'] = str(e)
 
         # 3. Gemini로 오디오 직접 분석
-        gemini_key = (load_settings() or {}).get('gemini_key', 'AIzaSyD_QuPnbNiZ2ZdSsKkqkF21u7Utsa2vgLk')
+        gemini_key = (load_settings() or {}).get('gemini_key', '')
         bpm = result['audio'].get('bpm') or result['meta'].get('bpm', '')
         key = result['audio'].get('key') or ''
         title = result['meta'].get('title', os.path.splitext(file.filename)[0])
@@ -676,16 +676,18 @@ def analyze_track():
         ]
 
         # Gemini로 오디오 파일 직접 분석
-        print('[Gemini] 분석 시작...')
+        if not gemini_key:
+            result['gemini_error'] = 'Gemini API 키 미설정 — 설정에서 입력해주세요'
+        else:
+            print('[Gemini] 분석 시작...')
         try:
+            if not gemini_key:
+                raise Exception('Gemini API 키 없음')
             import mimetypes
-            import warnings
-            warnings.filterwarnings('ignore')
-            import google.generativeai as genai
+            from google import genai as ggenai
             print('[Gemini] 패키지 임포트 성공')
 
-            genai.configure(api_key=gemini_key)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            client = ggenai.Client(api_key=gemini_key)
 
             with open(tmp_path, 'rb') as af:
                 audio_data = af.read()
@@ -732,17 +734,14 @@ def analyze_track():
                 '"analysis_summary":"실제 오디오 기반 분석 3-4문장 한국어"}'
             )
 
-            import base64 as b64
-            audio_b64 = b64.b64encode(audio_data).decode()
-            response = model.generate_content([
-                {
-                    'inline_data': {
-                        'mime_type': mime_type,
-                        'data': audio_b64
-                    }
-                },
-                prompt_text
-            ])
+            from google.genai import types as gtypes
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=[
+                    gtypes.Part(inline_data=gtypes.Blob(mime_type=mime_type, data=audio_data)),
+                    prompt_text,
+                ]
+            )
             print(f'[Gemini 응답] {response.text[:500]}')
             analysis = extract_json(response.text)
             print(f'[Gemini 파싱] {analysis}')
