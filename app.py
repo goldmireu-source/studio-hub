@@ -216,7 +216,7 @@ def api_get_settings():
     return jsonify({'has_key': False})
 
 # ── Gemini API 헬퍼 ───────────────────────────────────────────
-GEMINI_MODEL = 'gemini-2.0-flash'
+GEMINI_MODEL = 'gemini-1.5-flash'
 
 def _gemini_client():
     key = (load_settings() or {}).get('gemini_key', '').strip()
@@ -256,7 +256,8 @@ def call_gemini(system, user, max_tokens=2000, output_schema=None, **_):
         except Exception as e:
             last_err = e
             err_str = str(e)
-            is_temp = any(x in err_str for x in ['429', '500', '502', '503', 'timeout', 'quota'])
+            is_daily_exceeded = 'PerDay' in err_str or 'per day' in err_str.lower()
+            is_temp = not is_daily_exceeded and any(x in err_str for x in ['429', '500', '502', '503', 'timeout', 'quota'])
             if is_temp and attempt < 4:
                 wait = waits[attempt]
                 print(f'[Gemini] {attempt+1}/4 재시도, {wait}초 대기... ({err_str[:80]})')
