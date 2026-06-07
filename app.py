@@ -1013,29 +1013,51 @@ def download_audio(url, job_id):
         elif d['status'] == 'finished':
             job_store[job_id]['percent'] = 90
 
-    opts = {
+    base_opts = {
         'format': 'bestaudio/best',
         'outtmpl': os.path.join(DOWNLOAD_DIR, '%(id)s.%(ext)s'),
         'postprocessors': [{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'192'}],
         'ffmpeg_location': FFMPEG_DIR,
         'progress_hooks': [hook],
         'quiet': True, 'no_warnings': True,
-        'cookiesfrombrowser': ('chrome',),
     }
+
+    COOKIES_FILE = os.path.join(os.path.dirname(__file__), 'cookies.txt')
+
     def _run_download(ydl_opts):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             return ydl.extract_info(url, download=True)
 
     try:
-        try:
-            info = _run_download(opts)
-        except Exception as cookie_err:
-            if 'cookie' in str(cookie_err).lower() or 'Sign in' in str(cookie_err):
-                fallback_opts = {**opts}
-                del fallback_opts['cookiesfrombrowser']
-                info = _run_download(fallback_opts)
-            else:
-                raise
+        info = None
+        last_err = None
+
+        # 1) cookies.txt 파일 우선 (사용자가 직접 내보낸 경우)
+        if os.path.exists(COOKIES_FILE):
+            try:
+                info = _run_download({**base_opts, 'cookiefile': COOKIES_FILE})
+            except Exception as e:
+                last_err = e
+
+        # 2) 브라우저별 쿠키 순서대로 시도
+        if info is None:
+            for browser in ('chrome', 'edge', 'firefox', 'brave'):
+                try:
+                    info = _run_download({**base_opts, 'cookiesfrombrowser': (browser,)})
+                    break
+                except Exception as e:
+                    last_err = e
+                    continue
+
+        # 3) 쿠키 없이 시도
+        if info is None:
+            try:
+                info = _run_download(base_opts)
+            except Exception as e:
+                last_err = e
+
+        if info is None:
+            raise last_err
         entries = info.get('entries') if 'entries' in info else [info]
         tracks, cum = [], 0
         for i, e in enumerate(entries):
