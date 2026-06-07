@@ -1120,20 +1120,148 @@ def _cobalt_download(url, video_id, job_id):
              'timestamp': '00:00:00', 'file': f'{video_id}.mp3'}], title
 
 
+INVIDIOUS_INSTANCES = [
+    'https://inv.nadeko.net',
+    'https://yt.artemislena.eu',
+    'https://invidious.privacyredirect.com',
+    'https://iv.melmac.space',
+    'https://invidious.lunar.icu',
+]
+
+def _invidious_download(url, video_id, job_id):
+    """Invidious 프록시를 통해 YouTube 오디오 다운로드 (Oracle IP 차단 우회)"""
+    import requests as req
+    import subprocess
+    job_store[job_id]['percent'] = 10
+
+    title, author = video_id, ''
+    try:
+        m = req.get(f'https://www.youtube.com/oembed?url={url}&format=json', timeout=10)
+        d = m.json()
+        title = d.get('title', video_id)
+        author = d.get('author_name', '')
+    except Exception:
+        pass
+
+    job_store[job_id]['percent'] = 20
+
+    # Invidious 인스턴스에서 사용 가능한 오디오 itag 조회
+    itag = None
+    ext = 'm4a'
+    working_instance = None
+    audio_formats = []
+
+    for instance in INVIDIOUS_INSTANCES:
+        try:
+            r = req.get(f'{instance}/api/v1/videos/{video_id}',
+                        params={'fields': 'adaptiveFormats,title,author'},
+                        timeout=15)
+            if r.status_code != 200:
+                continue
+            data = r.json()
+            if 'error' in data:
+                continue
+            audio_formats = [f for f in data.get('adaptiveFormats', [])
+                             if 'audio' in f.get('type', '')]
+            audio_formats.sort(key=lambda f: f.get('bitrate', 0), reverse=True)
+            if audio_formats:
+                if not title or title == video_id:
+                    title = data.get('title', title)
+                    author = data.get('author', author)
+                itag = audio_formats[0].get('itag')
+                mime_type = audio_formats[0].get('type', '')
+                ext = 'webm' if ('webm' in mime_type or 'opus' in mime_type) else 'm4a'
+                working_instance = instance
+                print(f'[invidious] using {instance}, itag={itag}, ext={ext}')
+                break
+        except Exception as e:
+            print(f'[invidious] {instance} failed: {e}')
+            continue
+
+    if not itag or not working_instance:
+        raise Exception("Invidious: 사용 가능한 인스턴스 없음")
+
+    job_store[job_id]['percent'] = 40
+
+    # local=true: Invidious가 YouTube CDN 대신 중계 → Oracle IP 차단 우회
+    proxy_url = f'{working_instance}/latest_version?id={video_id}&itag={itag}&local=true'
+    raw_path = os.path.join(DOWNLOAD_DIR, f'{video_id}.{ext}')
+    out_path = os.path.join(DOWNLOAD_DIR, f'{video_id}.mp3')
+
+    ar = req.get(proxy_url, stream=True, timeout=300,
+                 headers={'User-Agent': 'Mozilla/5.0'})
+    ar.raise_for_status()
+
+    size = 0
+    with open(raw_path, 'wb') as f:
+        for chunk in ar.iter_content(65536):
+            f.write(chunk)
+            size += len(chunk)
+            job_store[job_id]['percent'] = min(80, 40 + size // (1024 * 200))
+
+    if size < 10000:
+        raise Exception(f"Invidious: 다운로드 파일 너무 작음 ({size}bytes)")
+
+    job_store[job_id]['percent'] = 85
+
+    ff = os.path.join(FFMPEG_DIR, 'ffmpeg')
+    if not os.path.exists(ff):
+        ff = 'ffmpeg'
+    result = subprocess.run(
+        [ff, '-y', '-i', raw_path, '-vn', '-acodec', 'libmp3lame', '-ab', '192k', out_path],
+        capture_output=True, timeout=120
+    )
+    if os.path.exists(raw_path) and raw_path != out_path:
+        try:
+            os.remove(raw_path)
+        except Exception:
+            pass
+    if not os.path.exists(out_path):
+        raise Exception(f"Invidious: ffmpeg 변환 실패: {result.stderr.decode(errors='ignore')[-200:]}")
+
+    job_store[job_id]['percent'] = 95
+
+    duration = 0
+    try:
+        fp = os.path.join(FFMPEG_DIR, 'ffprobe')
+        if not os.path.exists(fp):
+            fp = 'ffprobe'
+        r2 = subprocess.run([fp, '-v', 'quiet', '-print_format', 'json', '-show_format', out_path],
+                            capture_output=True, text=True, timeout=10)
+        duration = float(json.loads(r2.stdout).get('format', {}).get('duration', 0))
+    except Exception:
+        pass
+
+    return [{'title': cleanTitle(title), 'artist': cleanArtist(author),
+             'duration': duration, 'duration_fmt': fmt_time(duration),
+             'timestamp': '00:00:00', 'file': f'{video_id}.mp3'}], title
+
+
 def download_audio(url, job_id):
     import yt_dlp
     job_store[job_id] = {'status': 'downloading', 'percent': 0}
 
-    # 단일 YouTube 영상: cobalt.tools 우선 시도
+    # 단일 YouTube 영상: Invidious 프록시 우선 시도 (Oracle IP 차단 우회)
     vid_m = re.search(r'(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})', url)
     if vid_m:
+        vid = vid_m.group(1)
+        # 1차: Invidious 프록시 (API 키 불필요)
         try:
-            tracks, pl_title = _cobalt_download(url, vid_m.group(1), job_id)
+            tracks, pl_title = _invidious_download(url, vid, job_id)
             job_store[job_id] = {'status': 'done', 'percent': 100, 'tracks': tracks,
                                  'playlist_title': pl_title, 'total_duration': tracks[0]['duration_fmt']}
             return
-        except Exception as ce:
-            print(f'[cobalt] failed: {ce}')
+        except Exception as ie:
+            print(f'[invidious] failed: {ie}')
+        # 2차: cobalt.tools (API 키 있을 때)
+        if os.environ.get('COBALT_API_KEY', '').strip():
+            try:
+                tracks, pl_title = _cobalt_download(url, vid, job_id)
+                job_store[job_id] = {'status': 'done', 'percent': 100, 'tracks': tracks,
+                                     'playlist_title': pl_title, 'total_duration': tracks[0]['duration_fmt']}
+                return
+            except Exception as ce:
+                print(f'[cobalt] failed: {ce}')
 
     # yt-dlp fallback — WARP 프록시(Cloudflare) 우선
     def hook(d):
