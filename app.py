@@ -1132,150 +1132,21 @@ def _cobalt_download(url, video_id, job_id):
 
 # Invidious: local=true 파라미터로 강제 프록시 요청
 # 반환된 URL이 googlevideo.com이면 해당 인스턴스는 프록시 미지원으로 건너뜀
-INVIDIOUS_INSTANCES = [
-    'https://inv.nadeko.net',
-    'https://invidious.slipfox.xyz',
-    'https://iv.ggtyler.dev',
-    'https://invidious.protokolla.fi',
-    'https://invidious.flokinet.is',
-    'https://invidious.sethforprivacy.com',
-    'https://yt.cdaut.de',
-    'https://invidious.privacyredirect.com',
-    'https://invidious.tiekoetter.com',
-    'https://vid.puffyan.us',
-]
-
-def _invidious_download(url, video_id, job_id):
-    """Invidious local=true 프록시로 YouTube 오디오 다운로드.
-    local=true 파라미터를 사용하면 Invidious가 스트림 URL을 자체 /videoplayback 경로로
-    래핑하여 반환함. 반환 URL이 여전히 googlevideo.com이면 해당 인스턴스는 프록시를
-    지원하지 않는 것이므로 건너뜀."""
-    import requests as req
-    import subprocess
-    job_store[job_id]['percent'] = 10
-
-    title, author = video_id, ''
-    audio_url, audio_mime = None, ''
-
-    for instance in INVIDIOUS_INSTANCES:
-        try:
-            r = req.get(f'{instance}/api/v1/videos/{video_id}',
-                        params={'fields': 'adaptiveFormats,title,author', 'local': 'true'},
-                        timeout=15)
-            if r.status_code != 200:
-                print(f'[invidious] {instance} HTTP {r.status_code}')
-                continue
-            data = r.json()
-            if 'error' in data:
-                print(f'[invidious] {instance} API error: {data.get("error")}')
-                continue
-
-            audio_formats = [f for f in data.get('adaptiveFormats', [])
-                             if 'audio' in f.get('type', '')]
-            audio_formats.sort(key=lambda f: f.get('bitrate', 0), reverse=True)
-            if not audio_formats:
-                continue
-
-            candidate_url = audio_formats[0].get('url', '')
-            # local=true 적용 시 URL이 instance 도메인으로 시작해야 프록시됨
-            # googlevideo.com URL이면 프록시 미지원 → 건너뜀
-            if 'googlevideo.com' in candidate_url:
-                print(f'[invidious] {instance}: proxy not supported (googlevideo URL returned)')
-                continue
-
-            title = data.get('title', video_id)
-            author = data.get('author', '')
-            audio_url = candidate_url
-            audio_mime = audio_formats[0].get('type', '')
-            print(f'[invidious] {instance}: proxied URL confirmed, bitrate={audio_formats[0].get("bitrate")}')
-            break
-        except Exception as e:
-            print(f'[invidious] {instance} exception: {e}')
-            continue
-
-    if not audio_url:
-        raise Exception("Invidious: 프록시 지원 인스턴스 없음 (모든 인스턴스가 googlevideo URL 반환 또는 오류)")
-
-    job_store[job_id]['percent'] = 35
-
-    ext = 'webm' if ('webm' in audio_mime or 'opus' in audio_mime) else 'm4a'
-    raw_path = os.path.join(DOWNLOAD_DIR, f'{video_id}.{ext}')
-    out_path = os.path.join(DOWNLOAD_DIR, f'{video_id}.mp3')
-
-    ar = req.get(audio_url, stream=True, timeout=300,
-                 headers={'User-Agent': 'Mozilla/5.0'})
-    ar.raise_for_status()
-
-    size = 0
-    with open(raw_path, 'wb') as f:
-        for chunk in ar.iter_content(65536):
-            f.write(chunk)
-            size += len(chunk)
-            job_store[job_id]['percent'] = min(80, 35 + size // (1024 * 200))
-
-    if size < 10000:
-        raise Exception(f"Invidious: 다운로드 너무 작음 ({size}bytes)")
-
-    job_store[job_id]['percent'] = 85
-
-    ff = os.path.join(FFMPEG_DIR, 'ffmpeg')
-    if not os.path.exists(ff):
-        ff = 'ffmpeg'
-    result = subprocess.run(
-        [ff, '-y', '-i', raw_path, '-vn', '-acodec', 'libmp3lame', '-ab', '192k', out_path],
-        capture_output=True, timeout=120
-    )
-    if os.path.exists(raw_path) and raw_path != out_path:
-        try:
-            os.remove(raw_path)
-        except Exception:
-            pass
-    if not os.path.exists(out_path):
-        raise Exception(f"Invidious: ffmpeg 변환 실패: {result.stderr.decode(errors='ignore')[-200:]}")
-
-    job_store[job_id]['percent'] = 95
-
-    duration = 0
-    try:
-        fp = os.path.join(FFMPEG_DIR, 'ffprobe')
-        if not os.path.exists(fp):
-            fp = 'ffprobe'
-        r2 = subprocess.run([fp, '-v', 'quiet', '-print_format', 'json', '-show_format', out_path],
-                            capture_output=True, text=True, timeout=10)
-        duration = float(json.loads(r2.stdout).get('format', {}).get('duration', 0))
-    except Exception:
-        pass
-
-    return [{'title': cleanTitle(title), 'artist': cleanArtist(author),
-             'duration': duration, 'duration_fmt': fmt_time(duration),
-             'timestamp': '00:00:00', 'file': f'{video_id}.mp3'}], title
-
 
 def download_audio(url, job_id):
     import yt_dlp
     job_store[job_id] = {'status': 'downloading', 'percent': 0}
 
-    # 단일 YouTube 영상: Invidious 프록시 우선 시도 (Oracle IP 차단 우회)
+    # cobalt.tools (API 키 있을 때만)
     vid_m = re.search(r'(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})', url)
-    if vid_m:
-        vid = vid_m.group(1)
-        # 1차: Invidious 프록시 (API 키 불필요, local=true로 강제 프록시)
+    if vid_m and os.environ.get('COBALT_API_KEY', '').strip():
         try:
-            tracks, pl_title = _invidious_download(url, vid, job_id)
+            tracks, pl_title = _cobalt_download(url, vid_m.group(1), job_id)
             job_store[job_id] = {'status': 'done', 'percent': 100, 'tracks': tracks,
                                  'playlist_title': pl_title, 'total_duration': tracks[0]['duration_fmt']}
             return
-        except Exception as ie:
-            print(f'[invidious] failed: {ie}')
-        # 2차: cobalt.tools (API 키 있을 때)
-        if os.environ.get('COBALT_API_KEY', '').strip():
-            try:
-                tracks, pl_title = _cobalt_download(url, vid, job_id)
-                job_store[job_id] = {'status': 'done', 'percent': 100, 'tracks': tracks,
-                                     'playlist_title': pl_title, 'total_duration': tracks[0]['duration_fmt']}
-                return
-            except Exception as ce:
-                print(f'[cobalt] failed: {ce}')
+        except Exception as ce:
+            print(f'[cobalt] failed: {ce}')
 
     # yt-dlp fallback — WARP 프록시(Cloudflare) 우선
     def hook(d):
