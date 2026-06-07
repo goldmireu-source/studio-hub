@@ -3761,10 +3761,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function analyzeTrack() {
   if (!trackFile) return;
+  const btn = document.getElementById('analyze-btn');
+  if (btn.dataset.analyzing === '1') return;
+  btn.dataset.analyzing = '1';
+  btn.textContent = '⏳ 분석 중...';
   showErr('err-analyze', '');
   document.getElementById('prog-analyze').style.display = 'block';
   document.getElementById('analyze-result').style.display = 'none';
-  document.getElementById('analyze-btn').disabled = true;
+  btn.disabled = true;
 
   try {
     const fd = new FormData();
@@ -3805,7 +3809,10 @@ async function analyzeTrack() {
   } catch(e) {
     showErr('err-analyze', '분석 오류: ' + e.message);
   } finally {
-    document.getElementById('analyze-btn').disabled = false;
+    const b = document.getElementById('analyze-btn');
+    b.disabled = false;
+    b.textContent = '🔍 분석 및 옵션 적용';
+    b.dataset.analyzing = '0';
     document.getElementById('prog-analyze').style.display = 'none';
   }
 }
@@ -3839,36 +3846,29 @@ function applyAnalysisToOptions(a, audio, meta) {
   // 가사 밀도
   if (a.lyric_density) setEl('l-length', a.lyric_density);
 
-  // 장르 칩 선택
-  // 장르/분위기 칩 선택 (DOM 렌더링 후 실행)
-  setTimeout(() => {
-    if (a.genre_chips?.length) {
-      const genreInp = document.getElementById('l-genre');
-      const chips = document.querySelectorAll('#chips-genre .chip');
-      console.log('[분석] 장르 칩 수:', chips.length, '선택할 값:', a.genre_chips);
-      chips.forEach(c => {
-        if (a.genre_chips.includes(c.dataset.val)) {
-          c.classList.add('sel');
-          if (genreInp && !genreInp.value.includes(c.dataset.val)) {
-            genreInp.value = genreInp.value ? genreInp.value + ', ' + c.dataset.val : c.dataset.val;
-          }
+  // 장르/분위기 칩 선택
+  if (a.genre_chips?.length) {
+    const genreInp = document.getElementById('l-genre');
+    document.querySelectorAll('#chips-genre .chip').forEach(c => {
+      if (a.genre_chips.includes(c.dataset.val)) {
+        c.classList.add('sel');
+        if (genreInp && !genreInp.value.includes(c.dataset.val)) {
+          genreInp.value = genreInp.value ? genreInp.value + ', ' + c.dataset.val : c.dataset.val;
         }
-      });
-    }
-    if (a.mood_chips?.length) {
-      const moodInp = document.getElementById('l-mood');
-      const chips = document.querySelectorAll('#chips-mood .chip');
-      console.log('[분석] 분위기 칩 수:', chips.length, '선택할 값:', a.mood_chips);
-      chips.forEach(c => {
-        if (a.mood_chips.includes(c.dataset.val)) {
-          c.classList.add('sel');
-          if (moodInp && !moodInp.value.includes(c.dataset.val)) {
-            moodInp.value = moodInp.value ? moodInp.value + ', ' + c.dataset.val : c.dataset.val;
-          }
+      }
+    });
+  }
+  if (a.mood_chips?.length) {
+    const moodInp = document.getElementById('l-mood');
+    document.querySelectorAll('#chips-mood .chip').forEach(c => {
+      if (a.mood_chips.includes(c.dataset.val)) {
+        c.classList.add('sel');
+        if (moodInp && !moodInp.value.includes(c.dataset.val)) {
+          moodInp.value = moodInp.value ? moodInp.value + ', ' + c.dataset.val : c.dataset.val;
         }
-      });
-    }
-  }, 300);
+      }
+    });
+  }
 
   // 보컬 톤 칩 선택
   if (a.vocal_tone_chips?.length) {
