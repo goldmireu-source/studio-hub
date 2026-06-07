@@ -1017,7 +1017,7 @@ def download_audio(url, job_id):
 
     def _make_opts(extra={}):
         o = {
-            'format': 'bestaudio/best',
+            'format': '140/bestaudio[ext=m4a]/bestaudio/best',
             'outtmpl': os.path.join(DOWNLOAD_DIR, '%(id)s.%(ext)s'),
             'postprocessors': [{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'192'}],
             'ffmpeg_location': FFMPEG_DIR,
