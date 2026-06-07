@@ -17,7 +17,15 @@ for d in [DOWNLOAD_DIR, FFMPEG_DIR, DATA_DIR]:
     os.makedirs(d, exist_ok=True)
 
 job_store = {}
-oauth2_state = {'status': 'idle', 'auth_url': None, 'user_code': None, 'error': None}
+OAUTH2_TOKEN = os.path.expanduser('~/.cache/yt-dlp/youtube-oauth2.token.json')
+
+def _oauth2_is_authorized():
+    return os.path.exists(OAUTH2_TOKEN)
+
+oauth2_state = {
+    'status': 'authorized' if os.path.exists(OAUTH2_TOKEN) else 'idle',
+    'auth_url': None, 'user_code': None, 'error': None
+}
 
 class _OAuth2Logger:
     def _check(self, msg):
@@ -32,7 +40,8 @@ class _OAuth2Logger:
     def info(self, msg): self._check(msg)
     def warning(self, msg): pass
     def error(self, msg):
-        oauth2_state['status'] = 'error'; oauth2_state['error'] = msg
+        if oauth2_state['status'] not in ('waiting', 'authorized'):
+            oauth2_state['status'] = 'error'; oauth2_state['error'] = msg
 
 def _run_oauth2_init():
     import yt_dlp
@@ -42,13 +51,20 @@ def _run_oauth2_init():
             'username': 'oauth2', 'password': '',
             'logger': _OAuth2Logger(), 'quiet': True,
         }) as ydl:
-            ydl.extract_info('https://www.youtube.com/watch?v=dQw4w9WgXcQ', download=False)
-        oauth2_state['status'] = 'authorized'
+            try:
+                ydl.extract_info('https://www.youtube.com/watch?v=jNQXAC9IVRw', download=False)
+            except Exception:
+                pass  # 인증 후 영상 접근 오류는 무시
+        # 토큰 파일 생성 여부로 인증 성공 판단
+        if _oauth2_is_authorized():
+            oauth2_state['status'] = 'authorized'
+        elif oauth2_state['status'] not in ('waiting',):
+            oauth2_state['status'] = 'error'
+            oauth2_state['error'] = '토큰 파일이 생성되지 않았습니다'
     except Exception as e:
-        err = str(e)
         if oauth2_state['status'] not in ('waiting', 'authorized'):
             oauth2_state['status'] = 'error'
-            oauth2_state['error'] = err
+            oauth2_state['error'] = str(e)
 
 # ── ffmpeg 자동 설치 ──────────────────────────────────────────
 def setup_ffmpeg():
@@ -1066,7 +1082,7 @@ def download_audio(url, job_id):
         last_err = None
 
         # 1) OAuth2 인증된 경우 우선 시도
-        if oauth2_state['status'] == 'authorized':
+        if _oauth2_is_authorized():
             try:
                 info = _run_download({'username': 'oauth2', 'password': ''})
             except Exception as e:
