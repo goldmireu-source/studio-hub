@@ -1178,6 +1178,8 @@ def yt_oauth2_init():
 
 @app.route('/api/yt/oauth2-status')
 def yt_oauth2_status():
+    if _oauth2_is_authorized() and oauth2_state['status'] != 'authorized':
+        oauth2_state['status'] = 'authorized'
     return jsonify({**oauth2_state, 'logs': oauth2_logs[-15:]})
 
 @app.route('/api/yt/cookies-status')
