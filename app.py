@@ -18,6 +18,7 @@ for d in [DOWNLOAD_DIR, FFMPEG_DIR, DATA_DIR]:
 
 job_store = {}
 OAUTH2_TOKEN = os.path.expanduser('~/.cache/yt-dlp/youtube-oauth2.token.json')
+oauth2_logs = []
 
 def _oauth2_is_authorized():
     return os.path.exists(OAUTH2_TOKEN)
@@ -30,6 +31,8 @@ oauth2_state = {
 class _OAuth2Logger:
     def _check(self, msg):
         if not msg: return
+        oauth2_logs.append(msg)
+        if len(oauth2_logs) > 30: oauth2_logs.pop(0)
         print(f'[oauth2-log] {msg}')
         if 'google.com/device' in msg or 'accounts.google.com' in msg:
             url = re.search(r'https://[^\s\)"\']+', msg)
@@ -1175,7 +1178,7 @@ def yt_oauth2_init():
 
 @app.route('/api/yt/oauth2-status')
 def yt_oauth2_status():
-    return jsonify(oauth2_state)
+    return jsonify({**oauth2_state, 'logs': oauth2_logs[-15:]})
 
 @app.route('/api/yt/cookies-status')
 def yt_cookies_status():
