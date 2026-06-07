@@ -15,7 +15,7 @@ jobs:
           script: |
             cd ~/studio_app
             git pull origin main
-            source venv/bin/activate && pip install -U yt-dlp
+            source venv/bin/activate && pip install -U yt-dlp pysocks
             which tor || (sudo apt-get install -y tor && sudo systemctl enable tor)
             sudo systemctl start tor || true
             sudo systemctl restart studio-hub
