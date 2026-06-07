@@ -30,16 +30,18 @@ oauth2_state = {
 class _OAuth2Logger:
     def _check(self, msg):
         if not msg: return
-        if 'google.com/device' in msg or 'accounts.google.com/device' in msg:
-            url = re.search(r'https://\S+', msg)
+        print(f'[oauth2-log] {msg}')
+        if 'google.com/device' in msg or 'accounts.google.com' in msg or 'device' in msg.lower():
+            url = re.search(r'https://[^\s\)]+', msg)
             if url: oauth2_state['auth_url'] = url.group().rstrip('.')
             oauth2_state['status'] = 'waiting'
-        m = re.search(r'\b([A-Z]{4}-[A-Z]{4})\b', msg)
+        m = re.search(r'\b([A-Z0-9]{4}-[A-Z0-9]{4})\b', msg)
         if m: oauth2_state['user_code'] = m.group(1)
     def debug(self, msg): self._check(msg)
     def info(self, msg): self._check(msg)
-    def warning(self, msg): pass
+    def warning(self, msg): self._check(msg)
     def error(self, msg):
+        print(f'[oauth2-err] {msg}')
         if oauth2_state['status'] not in ('waiting', 'authorized'):
             oauth2_state['status'] = 'error'; oauth2_state['error'] = msg
 
