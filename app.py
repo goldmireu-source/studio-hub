@@ -1418,11 +1418,28 @@ def generate_lyrics():
                     songs.append({'title': str(title).strip(), 'lyrics': str(lyrics).strip()})
                 return songs
 
-            def normalize_songs(songs):
+            def purge_non_hangul(text):
+                """가사 본문에서 한글/공백/기본구두점 외 외국문자 제거"""
+                lines = text.split('\n')
+                cleaned = []
+                for line in lines:
+                    if re.match(r'^\[.+\]$', line.strip()):
+                        cleaned.append(line)
+                    else:
+                        # 한글 음절·자모·공백·줄바꿈·숫자·기본구두점만 허용
+                        filtered = re.sub(
+                            r'[^가-힣ᄀ-ᇿ㄰-㆏\s\d\[\].,!?~…\'\"\-·]',
+                            '', line
+                        )
+                        cleaned.append(re.sub(r' {2,}', ' ', filtered).strip())
+                return '\n'.join(cleaned)
+
+            def normalize_songs(songs, ko=False):
                 for i, s in enumerate(songs):
                     lyr = s.get('lyrics', '')
                     lyr = lyr.replace('\r\n','\n').replace('\r','\n')
                     if '\\n' in lyr: lyr = lyr.replace('\\n','\n')
+                    if ko: lyr = purge_non_hangul(lyr)
                     s['lyrics'] = lyr
                     if not s.get('title','').strip(): s['title'] = f'Song {i+1}'
                 return songs
@@ -1571,7 +1588,7 @@ def generate_lyrics():
             }
             ko_budget = min(16000, 2500 * max(1, count))
             ko_result = call_claude_json(ko_system, ko_user, schema=ko_schema, max_tokens=ko_budget)
-            ko_songs = normalize_songs(ko_result.get('songs', []))
+            ko_songs = normalize_songs(ko_result.get('songs', []), ko=True)
             results.append({'lang': 'ko', 'lang_name': '한국어', 'songs': ko_songs})
             job_store[job_id]['progress'] = 25
 
