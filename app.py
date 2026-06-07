@@ -1037,11 +1037,14 @@ def download_audio(url, job_id):
         info = None
         last_err = None
 
-        # 시도 순서: 쿠키+mweb → 쿠키+android_music → 쿠키+web → 쿠키 없이 web
+        # 시도 순서 (최신 yt-dlp 기준 우회 효과 높은 순)
         attempts = [
+            {'extractor_args': {'youtube': {'player_client': ['tv_creator']}}},
+            {'extractor_args': {'youtube': {'player_client': ['web_creator']}}},
             {'extractor_args': {'youtube': {'player_client': ['mweb']}}},
             {'extractor_args': {'youtube': {'player_client': ['android_music']}}},
             {'extractor_args': {'youtube': {'player_client': ['web']}}},
+            {},  # 기본값
         ]
         for extra in attempts:
             try:
@@ -1049,16 +1052,8 @@ def download_audio(url, job_id):
                 break
             except Exception as e:
                 last_err = e
+                print(f'[yt] client={extra} err={e}')
                 continue
-
-        # 최후 수단: 쿠키 없이 web
-        if info is None:
-            try:
-                opts_no_cookie = _make_opts({'extractor_args': {'youtube': {'player_client': ['web']}}})
-                opts_no_cookie.pop('cookiefile', None)
-                info = _run_download(opts_no_cookie)
-            except Exception as e:
-                last_err = e
 
         if info is None:
             raise last_err
