@@ -1120,75 +1120,59 @@ def _cobalt_download(url, video_id, job_id):
              'timestamp': '00:00:00', 'file': f'{video_id}.mp3'}], title
 
 
-INVIDIOUS_INSTANCES = [
-    'https://inv.nadeko.net',
-    'https://yt.artemislena.eu',
-    'https://invidious.privacyredirect.com',
-    'https://iv.melmac.space',
-    'https://invidious.lunar.icu',
+# Piped: API 응답 URL이 자체 pipedproxy 서버를 통하므로 Oracle IP가 YouTube에 노출되지 않음
+PIPED_INSTANCES = [
+    'https://pipedapi.kavin.rocks',
+    'https://piped-api.garudalinux.org',
+    'https://api.piped.projectsegfau.lt',
+    'https://pipedapi.adminforge.de',
+    'https://pipedapi.drgns.space',
 ]
 
-def _invidious_download(url, video_id, job_id):
-    """Invidious 프록시를 통해 YouTube 오디오 다운로드 (Oracle IP 차단 우회)"""
+def _piped_download(url, video_id, job_id):
+    """Piped API 프록시를 통해 YouTube 오디오 다운로드.
+    Piped는 audioStreams URL을 자체 pipedproxy 서버로 래핑하여 반환하므로
+    Oracle 서버 IP가 YouTube에 직접 노출되지 않음."""
     import requests as req
     import subprocess
     job_store[job_id]['percent'] = 10
 
-    title, author = video_id, ''
-    try:
-        m = req.get(f'https://www.youtube.com/oembed?url={url}&format=json', timeout=10)
-        d = m.json()
-        title = d.get('title', video_id)
-        author = d.get('author_name', '')
-    except Exception:
-        pass
+    title, author, audio_url, audio_mime = video_id, '', None, ''
 
-    job_store[job_id]['percent'] = 20
-
-    # Invidious 인스턴스에서 사용 가능한 오디오 itag 조회
-    itag = None
-    ext = 'm4a'
-    working_instance = None
-    audio_formats = []
-
-    for instance in INVIDIOUS_INSTANCES:
+    for instance in PIPED_INSTANCES:
         try:
-            r = req.get(f'{instance}/api/v1/videos/{video_id}',
-                        params={'fields': 'adaptiveFormats,title,author'},
-                        timeout=15)
+            r = req.get(f'{instance}/streams/{video_id}', timeout=15)
             if r.status_code != 200:
+                print(f'[piped] {instance} HTTP {r.status_code}')
                 continue
             data = r.json()
             if 'error' in data:
+                print(f'[piped] {instance} error: {data["error"]}')
                 continue
-            audio_formats = [f for f in data.get('adaptiveFormats', [])
-                             if 'audio' in f.get('type', '')]
-            audio_formats.sort(key=lambda f: f.get('bitrate', 0), reverse=True)
-            if audio_formats:
-                if not title or title == video_id:
-                    title = data.get('title', title)
-                    author = data.get('author', author)
-                itag = audio_formats[0].get('itag')
-                mime_type = audio_formats[0].get('type', '')
-                ext = 'webm' if ('webm' in mime_type or 'opus' in mime_type) else 'm4a'
-                working_instance = instance
-                print(f'[invidious] using {instance}, itag={itag}, ext={ext}')
-                break
+            streams = sorted(data.get('audioStreams', []),
+                             key=lambda s: s.get('bitrate', 0), reverse=True)
+            if not streams:
+                continue
+            title = data.get('title', video_id)
+            author = data.get('uploader', '')
+            audio_url = streams[0]['url']
+            audio_mime = streams[0].get('mimeType', '')
+            print(f'[piped] using {instance}, bitrate={streams[0].get("bitrate")}, url={audio_url[:60]}')
+            break
         except Exception as e:
-            print(f'[invidious] {instance} failed: {e}')
+            print(f'[piped] {instance} exception: {e}')
             continue
 
-    if not itag or not working_instance:
-        raise Exception("Invidious: 사용 가능한 인스턴스 없음")
+    if not audio_url:
+        raise Exception("Piped: 모든 인스턴스 실패")
 
-    job_store[job_id]['percent'] = 40
+    job_store[job_id]['percent'] = 30
 
-    # local=true: Invidious가 YouTube CDN 대신 중계 → Oracle IP 차단 우회
-    proxy_url = f'{working_instance}/latest_version?id={video_id}&itag={itag}&local=true'
+    ext = 'webm' if ('webm' in audio_mime or 'opus' in audio_mime) else 'm4a'
     raw_path = os.path.join(DOWNLOAD_DIR, f'{video_id}.{ext}')
     out_path = os.path.join(DOWNLOAD_DIR, f'{video_id}.mp3')
 
-    ar = req.get(proxy_url, stream=True, timeout=300,
+    ar = req.get(audio_url, stream=True, timeout=300,
                  headers={'User-Agent': 'Mozilla/5.0'})
     ar.raise_for_status()
 
@@ -1197,10 +1181,10 @@ def _invidious_download(url, video_id, job_id):
         for chunk in ar.iter_content(65536):
             f.write(chunk)
             size += len(chunk)
-            job_store[job_id]['percent'] = min(80, 40 + size // (1024 * 200))
+            job_store[job_id]['percent'] = min(80, 30 + size // (1024 * 200))
 
     if size < 10000:
-        raise Exception(f"Invidious: 다운로드 파일 너무 작음 ({size}bytes)")
+        raise Exception(f"Piped: 다운로드 파일 너무 작음 ({size}bytes) — 프록시 URL이 실제 오디오를 반환하지 않음")
 
     job_store[job_id]['percent'] = 85
 
@@ -1217,7 +1201,7 @@ def _invidious_download(url, video_id, job_id):
         except Exception:
             pass
     if not os.path.exists(out_path):
-        raise Exception(f"Invidious: ffmpeg 변환 실패: {result.stderr.decode(errors='ignore')[-200:]}")
+        raise Exception(f"Piped: ffmpeg 변환 실패: {result.stderr.decode(errors='ignore')[-300:]}")
 
     job_store[job_id]['percent'] = 95
 
@@ -1241,18 +1225,18 @@ def download_audio(url, job_id):
     import yt_dlp
     job_store[job_id] = {'status': 'downloading', 'percent': 0}
 
-    # 단일 YouTube 영상: Invidious 프록시 우선 시도 (Oracle IP 차단 우회)
+    # 단일 YouTube 영상: Piped 프록시 우선 시도 (Oracle IP 차단 우회)
     vid_m = re.search(r'(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})', url)
     if vid_m:
         vid = vid_m.group(1)
-        # 1차: Invidious 프록시 (API 키 불필요)
+        # 1차: Piped 프록시 (API 키 불필요, 자체 pipedproxy 서버로 우회)
         try:
-            tracks, pl_title = _invidious_download(url, vid, job_id)
+            tracks, pl_title = _piped_download(url, vid, job_id)
             job_store[job_id] = {'status': 'done', 'percent': 100, 'tracks': tracks,
                                  'playlist_title': pl_title, 'total_duration': tracks[0]['duration_fmt']}
             return
         except Exception as ie:
-            print(f'[invidious] failed: {ie}')
+            print(f'[piped] failed: {ie}')
         # 2차: cobalt.tools (API 키 있을 때)
         if os.environ.get('COBALT_API_KEY', '').strip():
             try:
