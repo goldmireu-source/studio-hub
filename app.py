@@ -31,11 +31,13 @@ class _OAuth2Logger:
     def _check(self, msg):
         if not msg: return
         print(f'[oauth2-log] {msg}')
-        if 'google.com/device' in msg or 'accounts.google.com' in msg or 'device' in msg.lower():
-            url = re.search(r'https://[^\s\)]+', msg)
-            if url: oauth2_state['auth_url'] = url.group().rstrip('.')
+        if 'google.com/device' in msg or 'accounts.google.com' in msg:
+            url = re.search(r'https://[^\s\)"\']+', msg)
+            if url: oauth2_state['auth_url'] = url.group().rstrip('.,')
             oauth2_state['status'] = 'waiting'
-        m = re.search(r'\b([A-Z0-9]{4}-[A-Z0-9]{4})\b', msg)
+        # 코드 형식: ABCD-EFGH 또는 ABCDEFGH
+        m = re.search(r'\b([A-Z0-9]{4}-[A-Z0-9]{4})\b', msg) or \
+            re.search(r'code[:\s]+([A-Z0-9]{4}-[A-Z0-9]{4})', msg, re.I)
         if m: oauth2_state['user_code'] = m.group(1)
     def debug(self, msg): self._check(msg)
     def info(self, msg): self._check(msg)
