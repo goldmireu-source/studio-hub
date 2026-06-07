@@ -1429,13 +1429,23 @@ def generate_lyrics():
                     songs.append({'title': str(title).strip(), 'lyrics': str(lyrics).strip()})
                 return songs
 
+            _FOREIGN_RE = re.compile('[^가-힣ᄀ-ᇿ㄰-㆏\x00-\x7f]')
+
             def has_foreign_chars(songs):
-                """가사에 한글 외 외국 문자(한자·힌디·일본어 등)가 있는지 검사"""
+                return any(_FOREIGN_RE.search(s.get('lyrics', '')) for s in songs)
+
+            def purge_foreign_words(songs):
                 for s in songs:
-                    if re.search(r'[一-鿿぀-ヿऀ-ॿЀ-ӿ؀-ۿ]',
-                                 s.get('lyrics', '')):
-                        return True
-                return False
+                    lines = s['lyrics'].split('\n')
+                    cleaned = []
+                    for line in lines:
+                        if re.match(r'^\[.+\]$', line.strip()):
+                            cleaned.append(line)
+                        else:
+                            line = re.sub(r'\S*[^가-힣ᄀ-ᇿ㄰-㆏\x00-\x7f]\S*', '', line)
+                            cleaned.append(re.sub(r' {2,}', ' ', line).strip())
+                    s['lyrics'] = '\n'.join(cleaned)
+                return songs
 
             def normalize_songs(songs):
                 if not isinstance(songs, list):
@@ -1600,6 +1610,8 @@ def generate_lyrics():
                 ko_songs = normalize_songs(ko_result.get('songs', []))
                 if not has_foreign_chars(ko_songs):
                     break
+            if has_foreign_chars(ko_songs):
+                ko_songs = purge_foreign_words(ko_songs)
             results.append({'lang': 'ko', 'lang_name': '한국어', 'songs': ko_songs})
             job_store[job_id]['progress'] = 25
 
