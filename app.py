@@ -1057,10 +1057,78 @@ def fmt_time(sec):
 def sanitize(name):
     return "".join(c for c in name if c.isalnum() or c in (' ','-','_')).strip()
 
+def _cobalt_download(url, video_id, job_id):
+    """cobalt.tools API를 통해 YouTube 오디오 다운로드 (Oracle IP 차단 우회)"""
+    import requests as req
+    job_store[job_id]['percent'] = 10
+
+    # 메타데이터: YouTube oEmbed (인증 불필요)
+    title, author = video_id, ''
+    try:
+        m = req.get(f'https://www.youtube.com/oembed?url={url}&format=json', timeout=10)
+        d = m.json()
+        title = d.get('title', video_id)
+        author = d.get('author_name', '')
+    except Exception: pass
+
+    job_store[job_id]['percent'] = 20
+
+    # cobalt.tools API로 오디오 URL 요청
+    c = req.post('https://api.cobalt.tools/',
+                 json={'url': url, 'downloadMode': 'audio', 'audioFormat': 'mp3', 'audioBitrate': '192'},
+                 headers={'Accept': 'application/json', 'Content-Type': 'application/json'},
+                 timeout=30)
+    cd = c.json()
+    if cd.get('status') not in ('tunnel', 'redirect', 'stream'):
+        raise Exception(f"cobalt: {cd.get('error', {}).get('code', str(cd))}")
+
+    job_store[job_id]['percent'] = 40
+
+    # 오디오 파일 다운로드
+    out_path = os.path.join(DOWNLOAD_DIR, f'{video_id}.mp3')
+    ar = req.get(cd['url'], stream=True, timeout=180,
+                 headers={'User-Agent': 'Mozilla/5.0'})
+    ar.raise_for_status()
+    size = 0
+    with open(out_path, 'wb') as f:
+        for chunk in ar.iter_content(65536):
+            f.write(chunk); size += len(chunk)
+            job_store[job_id]['percent'] = min(90, 40 + size // (1024 * 150))
+
+    job_store[job_id]['percent'] = 95
+
+    # ffprobe로 길이 확인
+    duration = 0
+    try:
+        import subprocess
+        fp = os.path.join(FFMPEG_DIR, 'ffprobe')
+        if not os.path.exists(fp): fp = 'ffprobe'
+        r = subprocess.run([fp, '-v', 'quiet', '-print_format', 'json', '-show_format', out_path],
+                           capture_output=True, text=True, timeout=10)
+        duration = float(json.loads(r.stdout).get('format', {}).get('duration', 0))
+    except Exception: pass
+
+    return [{'title': cleanTitle(title), 'artist': cleanArtist(author),
+             'duration': duration, 'duration_fmt': fmt_time(duration),
+             'timestamp': '00:00:00', 'file': f'{video_id}.mp3'}], title
+
+
 def download_audio(url, job_id):
     import yt_dlp
     job_store[job_id] = {'status': 'downloading', 'percent': 0}
 
+    # 단일 YouTube 영상: cobalt.tools 우선 시도
+    vid_m = re.search(r'(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})', url)
+    if vid_m:
+        try:
+            tracks, pl_title = _cobalt_download(url, vid_m.group(1), job_id)
+            job_store[job_id] = {'status': 'done', 'percent': 100, 'tracks': tracks,
+                                 'playlist_title': pl_title, 'total_duration': tracks[0]['duration_fmt']}
+            return
+        except Exception as ce:
+            print(f'[cobalt] failed: {ce}')
+
+    # 플레이리스트 또는 cobalt 실패 시 yt-dlp fallback
     def hook(d):
         if d['status'] == 'downloading':
             try: job_store[job_id]['percent'] = float(d.get('_percent_str','0%').strip().replace('%',''))
@@ -1069,58 +1137,29 @@ def download_audio(url, job_id):
             job_store[job_id]['percent'] = 90
 
     COOKIES_FILE = os.path.join(os.path.dirname(__file__), 'cookies.txt')
-
     base = {
         'format': 'bestaudio/best',
         'outtmpl': os.path.join(DOWNLOAD_DIR, '%(id)s.%(ext)s'),
         'postprocessors': [{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'192'}],
-        'ffmpeg_location': FFMPEG_DIR,
-        'progress_hooks': [hook],
+        'ffmpeg_location': FFMPEG_DIR, 'progress_hooks': [hook],
         'quiet': True, 'no_warnings': True,
     }
-
     def _run_download(extra={}):
-        opts = {**base, **extra}
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with yt_dlp.YoutubeDL({**base, **extra}) as ydl:
             return ydl.extract_info(url, download=True)
 
     try:
-        info = None
-        last_err = None
+        info = None; last_err = None
+        for extra in (
+            {'username': 'oauth2', 'password': ''} if _oauth2_is_authorized() else None,
+            {'cookiefile': COOKIES_FILE} if os.path.exists(COOKIES_FILE) else None,
+            {},
+        ):
+            if extra is None: continue
+            try: info = _run_download(extra); break
+            except Exception as e: last_err = e; print(f'[yt] {extra} err={e}')
 
-        # 1) OAuth2 인증된 경우 우선 시도
-        if _oauth2_is_authorized():
-            try:
-                info = _run_download({'username': 'oauth2', 'password': ''})
-            except Exception as e:
-                last_err = e
-                print(f'[yt] oauth2 err={e}')
-
-        # 2) cookies.txt + Tor 프록시
-        if info is None and os.path.exists(COOKIES_FILE):
-            try:
-                info = _run_download({'cookiefile': COOKIES_FILE, 'proxy': 'socks5://127.0.0.1:9050'})
-            except Exception as e:
-                last_err = e
-                print(f'[yt] cookie+tor err={e}')
-
-        # 3) cookies.txt 직접 연결
-        if info is None and os.path.exists(COOKIES_FILE):
-            try:
-                info = _run_download({'cookiefile': COOKIES_FILE})
-            except Exception as e:
-                last_err = e
-                print(f'[yt] cookie err={e}')
-
-        # 4) 그냥 시도
-        if info is None:
-            try:
-                info = _run_download()
-            except Exception as e:
-                last_err = e
-
-        if info is None:
-            raise last_err
+        if info is None: raise last_err
         entries = info.get('entries') if 'entries' in info else [info]
         tracks, cum = [], 0
         for i, e in enumerate(entries):
@@ -1128,24 +1167,18 @@ def download_audio(url, job_id):
             title = e.get('title', f'Track {i+1}')
             duration = e.get('duration', 0) or 0
             vid = e.get('id', '')
-            # 파일명은 영상 ID 기반 (한글/특수문자 매칭 문제 회피)
             actual = f"{vid}.mp3" if vid else None
             if actual and not os.path.exists(os.path.join(DOWNLOAD_DIR, actual)):
-                # 폴백: 폴더에서 ID로 시작하는 mp3 검색
                 for f in os.listdir(DOWNLOAD_DIR):
                     if f.endswith('.mp3') and vid and vid in f:
                         actual = f; break
-            tracks.append({
-                'title': cleanTitle(title), 'artist': cleanArtist(e.get('uploader', e.get('channel',''))),
-                'duration': duration, 'duration_fmt': fmt_time(duration),
-                'timestamp': fmt_time(cum), 'file': actual or f"{vid or i+1}.mp3"
-            })
+            tracks.append({'title': cleanTitle(title), 'artist': cleanArtist(e.get('uploader', e.get('channel',''))),
+                           'duration': duration, 'duration_fmt': fmt_time(duration),
+                           'timestamp': fmt_time(cum), 'file': actual or f"{vid or i+1}.mp3"})
             cum += duration
-        job_store[job_id] = {
-            'status': 'done', 'percent': 100, 'tracks': tracks,
-            'playlist_title': info.get('title', info.get('playlist_title','')),
-            'total_duration': fmt_time(cum)
-        }
+        job_store[job_id] = {'status': 'done', 'percent': 100, 'tracks': tracks,
+                             'playlist_title': info.get('title', info.get('playlist_title','')),
+                             'total_duration': fmt_time(cum)}
     except Exception as e:
         job_store[job_id] = {'status': 'error', 'error': str(e)}
         print(f'[yt error] {e}')
