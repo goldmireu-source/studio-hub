@@ -10,6 +10,14 @@ CORS(app)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, 'downloads')
 FFMPEG_DIR = os.path.join(BASE_DIR, 'ffmpeg_bin')
+
+def _resolve_ffmpeg_dir():
+    import shutil
+    for name in ('ffmpeg', 'ffmpeg.exe'):
+        if os.path.exists(os.path.join(FFMPEG_DIR, name)):
+            return FFMPEG_DIR
+    ff = shutil.which('ffmpeg')
+    return os.path.dirname(ff) if ff else None
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 SETTINGS_FILE = os.path.join(DATA_DIR, 'settings.json')
 
@@ -1280,7 +1288,7 @@ def download_audio(url, job_id):
         'format': 'bestaudio/best',
         'outtmpl': os.path.join(DOWNLOAD_DIR, '%(id)s.%(ext)s'),
         'postprocessors': [{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'192'}],
-        'ffmpeg_location': FFMPEG_DIR if os.path.exists(os.path.join(FFMPEG_DIR, 'ffmpeg')) or os.path.exists(os.path.join(FFMPEG_DIR, 'ffmpeg.exe')) else None,
+        'ffmpeg_location': _resolve_ffmpeg_dir(),
         'progress_hooks': [hook],
         'quiet': True, 'no_warnings': True,
     }
