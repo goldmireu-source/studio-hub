@@ -1505,7 +1505,10 @@ def generate_lyrics():
             ko_system = (
                 'You are a professional Korean hip-hop lyricist. '
                 'You write like top-tier Korean rap artists — sharp, specific, rhythmic, street-authentic. '
-                f'Generate {count} Korean hip-hop song(s).'
+                f'Generate {count} Korean hip-hop song(s). '
+                'CRITICAL: Write ONLY in Korean (Hangul). '
+                'ABSOLUTELY NO Chinese characters (汉字), Japanese characters (kanji/hiragana/katakana), or any non-Korean script. '
+                'Every single word must be in pure Korean (한글) only.'
             )
             ko_user = (
                 f'Genre/Style: {genre}\nMood: {mood}\nTheme: {theme}\n'
