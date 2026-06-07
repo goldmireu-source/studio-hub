@@ -724,13 +724,20 @@ def analyze_track():
                 '"analysis_summary":"실제 오디오 기반 분석 3-4문장 한국어"}'
             )
 
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=[
-                    gtypes.Part(inline_data=gtypes.Blob(mime_type=mime_type, data=audio_data)),
-                    prompt_text,
-                ]
-            )
+            import concurrent.futures as _cf
+            with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
+                _fut = _ex.submit(
+                    client.models.generate_content,
+                    model='gemini-2.5-flash',
+                    contents=[
+                        gtypes.Part(inline_data=gtypes.Blob(mime_type=mime_type, data=audio_data)),
+                        prompt_text,
+                    ]
+                )
+                try:
+                    response = _fut.result(timeout=30)
+                except _cf.TimeoutError:
+                    raise Exception('Gemini 분석 시간 초과 (30s) — librosa 결과만 사용됩니다')
             print(f'[Gemini 응답] {response.text[:500]}')
             analysis = extract_json(response.text)
             print(f'[Gemini 파싱] {analysis}')

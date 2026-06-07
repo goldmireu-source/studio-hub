@@ -3769,7 +3769,14 @@ async function analyzeTrack() {
   try {
     const fd = new FormData();
     fd.append('file', trackFile);
-    const res = await fetch('/api/analyze/track', { method: 'POST', body: fd });
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 55000);
+    let res;
+    try {
+      res = await fetch('/api/analyze/track', { method: 'POST', body: fd, signal: ctrl.signal });
+    } finally {
+      clearTimeout(tid);
+    }
     const d = await res.json();
     document.getElementById('prog-analyze').style.display = 'none';
 
