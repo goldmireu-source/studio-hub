@@ -211,17 +211,68 @@ def api_get_settings():
         if os.path.exists(SETTINGS_FILE):
             with open(SETTINGS_FILE, 'r') as f:
                 s = json.load(f)
-            return jsonify({'has_key': bool(s.get('gemini_key'))})
+            return jsonify({'has_key': bool(s.get('groq_key'))})
     except: pass
     return jsonify({'has_key': False})
 
-# ── Gemini API 헬퍼 ───────────────────────────────────────────
-GEMINI_MODEL = 'gemini-2.0-flash-lite'
+# ── Groq API 헬퍼 (텍스트 생성) ───────────────────────────────
+GROQ_MODEL = 'llama-3.3-70b-versatile'
+GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
-def _gemini_client():
+def _groq_key():
+    key = (load_settings() or {}).get('groq_key', '').strip()
+    if not key:
+        raise Exception('Groq API 키 미설정 — 설정에서 입력해주세요')
+    return key
+
+def call_groq(system, user, max_tokens=2000, output_schema=None, **_):
+    key = _groq_key()
+    headers = {'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'}
+    data = {
+        'model': GROQ_MODEL,
+        'messages': [{'role': 'system', 'content': system}, {'role': 'user', 'content': user}],
+        'max_tokens': max_tokens,
+    }
+    if output_schema is not None:
+        data['response_format'] = {'type': 'json_object'}
+    waits = [8, 15, 25, 40]
+    last_err = None
+    for attempt in range(5):
+        try:
+            import requests as _req
+            resp = _req.post(GROQ_API_URL, headers=headers, json=data, timeout=60)
+            resp.raise_for_status()
+            return resp.json()['choices'][0]['message']['content'].strip()
+        except Exception as e:
+            last_err = e
+            err_str = str(e)
+            is_daily = any(x in err_str.lower() for x in ['daily', 'per_day', 'perday'])
+            is_temp = not is_daily and any(x in err_str for x in ['429', '500', '502', '503', 'timeout'])
+            if is_temp and attempt < 4:
+                wait = waits[attempt]
+                print(f'[Groq] {attempt+1}/4 재시도, {wait}초 대기... ({err_str[:80]})')
+                time.sleep(wait)
+            else:
+                raise
+    raise last_err
+
+# 하위 호환 별칭
+call_claude = call_groq
+call_gemini = call_groq
+
+def call_groq_json(system, user, schema, max_tokens=2000, **_):
+    system_json = system + '\n\nReturn valid JSON only. No markdown, no explanation.'
+    text = call_groq(system_json, user, max_tokens=max_tokens, output_schema=schema)
+    return json.loads(text)
+
+call_claude_json = call_groq_json
+call_gemini_json = call_groq_json
+
+# ── Gemini 오디오 분석용 헬퍼 (트랙 분석 전용) ──────────────────
+def _gemini_audio_client():
     key = (load_settings() or {}).get('gemini_key', '').strip()
     if not key:
-        raise Exception('Gemini API 키 미설정 — 설정에서 입력해주세요')
+        raise Exception('Gemini API 키 미설정 — 트랙 분석 기능에 필요합니다')
     from google import genai as ggenai
     return ggenai.Client(api_key=key)
 
@@ -235,45 +286,6 @@ def _strip_additional_props(schema):
         elif isinstance(v, list):
             result[k] = [_strip_additional_props(i) for i in v]
     return result
-
-def call_gemini(system, user, max_tokens=2000, output_schema=None, **_):
-    from google.genai import types as gtypes
-    client = _gemini_client()
-    cfg = {'system_instruction': system, 'max_output_tokens': max_tokens}
-    if output_schema is not None:
-        cfg['response_mime_type'] = 'application/json'
-        cfg['response_schema'] = _strip_additional_props(output_schema)
-    waits = [8, 15, 25, 40]
-    last_err = None
-    for attempt in range(5):
-        try:
-            resp = client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=user,
-                config=gtypes.GenerateContentConfig(**cfg),
-            )
-            return resp.text.strip()
-        except Exception as e:
-            last_err = e
-            err_str = str(e)
-            is_daily_exceeded = 'PerDay' in err_str or 'per day' in err_str.lower()
-            is_temp = not is_daily_exceeded and any(x in err_str for x in ['429', '500', '502', '503', 'timeout', 'quota'])
-            if is_temp and attempt < 4:
-                wait = waits[attempt]
-                print(f'[Gemini] {attempt+1}/4 재시도, {wait}초 대기... ({err_str[:80]})')
-                time.sleep(wait)
-            else:
-                raise
-    raise last_err
-
-# 하위 호환 별칭 (호출부 일괄 교체)
-call_claude = call_gemini
-
-def call_gemini_json(system, user, schema, max_tokens=2000, **_):
-    text = call_gemini(system, user, max_tokens=max_tokens, output_schema=schema)
-    return json.loads(text)
-
-call_claude_json = call_gemini_json
 
 # ── 공통 JSON 파싱 ──────────────────────────────────────────
 def extract_json(text):
@@ -662,7 +674,7 @@ def analyze_track():
         try:
             import mimetypes
             from google.genai import types as gtypes
-            client = _gemini_client()
+            client = _gemini_audio_client()
 
             with open(tmp_path, 'rb') as af:
                 audio_data = af.read()

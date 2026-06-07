@@ -1255,9 +1255,14 @@ body{display:flex;min-height:100vh}
   <div class="modal">
     <div class="modal-title">설정</div>
     <div class="field">
-      <label>Gemini API Key</label>
+      <label>Groq API Key</label>
+      <input id="groq-key-input" type="password" placeholder="gsk_...">
+      <div style="font-size:11px;color:var(--m2);margin-top:4px">console.groq.com 에서 무료 발급 (가사·태그 생성에 사용)</div>
+    </div>
+    <div class="field" style="margin-top:.5rem">
+      <label>Gemini API Key <span style="font-weight:400;color:var(--m2)">(선택 — 트랙 분석 전용)</span></label>
       <input id="gemini-key-input" type="password" placeholder="AIza...">
-      <div style="font-size:11px;color:var(--m2);margin-top:4px">aistudio.google.com/app/apikey 에서 발급 (트랙 분석 기능에 사용)</div>
+      <div style="font-size:11px;color:var(--m2);margin-top:4px">aistudio.google.com/app/apikey 에서 발급</div>
     </div>
     <div style="display:flex;gap:8px;margin-top:.5rem">
       <button class="btn btn-p btn-sm" onclick="saveKey()">저장</button>
@@ -1356,15 +1361,20 @@ async function changeAuth() {
   }
 }
 async function saveKey() {
+  const groqKey = document.getElementById('groq-key-input').value.trim();
+  if (!groqKey) { showErr('err-key','Groq API 키를 입력해주세요'); return; }
   const geminiKey = document.getElementById('gemini-key-input').value.trim();
-  if (!geminiKey) { showErr('err-key','키를 입력해주세요'); return; }
-  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gemini_key:geminiKey})});
-  localStorage.setItem('gemini_key', geminiKey);
+  const body = {groq_key: groqKey};
+  if (geminiKey) body.gemini_key = geminiKey;
+  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  localStorage.setItem('groq_key', groqKey);
+  if (geminiKey) localStorage.setItem('gemini_key', geminiKey);
   closeSettings();
   checkKeyStatus();
 }
 window.addEventListener('load',()=>{
-  const gk=localStorage.getItem('gemini_key'); if(gk) document.getElementById('gemini-key-input').value=gk;
+  const gk=localStorage.getItem('groq_key'); if(gk) document.getElementById('groq-key-input').value=gk;
+  const gmk=localStorage.getItem('gemini_key'); if(gmk) document.getElementById('gemini-key-input').value=gmk;
 });
 
 // ── 언어 그리드 ───────────────────────────────────────────────
