@@ -13,9 +13,11 @@ FFMPEG_DIR = os.path.join(BASE_DIR, 'ffmpeg_bin')
 
 def _resolve_ffmpeg_dir():
     import shutil
-    for name in ('ffmpeg', 'ffmpeg.exe'):
-        if os.path.exists(os.path.join(FFMPEG_DIR, name)):
-            return FFMPEG_DIR
+    # Windows 번들 바이너리 (Linux에서는 .exe 무시)
+    bundled = 'ffmpeg.exe' if sys.platform == 'win32' else 'ffmpeg'
+    if os.path.exists(os.path.join(FFMPEG_DIR, bundled)):
+        return FFMPEG_DIR
+    # 시스템 ffmpeg
     ff = shutil.which('ffmpeg')
     return os.path.dirname(ff) if ff else None
 DATA_DIR = os.path.join(BASE_DIR, 'data')
