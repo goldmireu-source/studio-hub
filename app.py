@@ -211,85 +211,68 @@ def api_get_settings():
         if os.path.exists(SETTINGS_FILE):
             with open(SETTINGS_FILE, 'r') as f:
                 s = json.load(f)
-            return jsonify({'has_key': bool(s.get('anthropic_key'))})
+            return jsonify({'has_key': bool(s.get('gemini_key'))})
     except: pass
     return jsonify({'has_key': False})
 
-# ── Claude API 헬퍼 ───────────────────────────────────────────
-# 모델 상수: 작업별로 선택
-CLAUDE_MODEL_SONNET = 'claude-sonnet-4-6'   # 일반 작업 (가사/번역/피드백 등)
-CLAUDE_MODEL_HAIKU  = 'claude-haiku-4-5'    # 단순/짧은 작업 (태그 생성 등) — 3배 저렴
+# ── Gemini API 헬퍼 ───────────────────────────────────────────
+GEMINI_MODEL = 'gemini-2.0-flash'
 
-def call_claude(system, user, max_tokens=2000, model=None,
-                cache_system=False, output_schema=None):
-    """
-    Claude API 호출 헬퍼.
-      - model: 기본 Sonnet 4.6. 단순 작업은 CLAUDE_MODEL_HAIKU.
-      - cache_system: True이면 system 프롬프트에 prompt caching 적용
-                      (~90% 절감, Sonnet 4.6는 2048+ 토큰 필요).
-      - output_schema: dict (JSON Schema). 제공 시 구조화 출력 강제 —
-                      마크다운/설명 래퍼 없는 순수 JSON 보장.
-    반환: 응답 텍스트 (str). output_schema 사용 시 곧바로 json.loads 가능.
-    """
-    import anthropic
-    client = anthropic.Anthropic()
-    chosen_model = model or CLAUDE_MODEL_SONNET
+def _gemini_client():
+    key = (load_settings() or {}).get('gemini_key', '').strip()
+    if not key:
+        raise Exception('Gemini API 키 미설정 — 설정에서 입력해주세요')
+    from google import genai as ggenai
+    return ggenai.Client(api_key=key)
 
-    # system 프롬프트: 캐싱 사용 시 블록 형식으로 래핑
-    if cache_system:
-        system_param = [{
-            'type': 'text',
-            'text': system,
-            'cache_control': {'type': 'ephemeral'}
-        }]
-    else:
-        system_param = system
+def _strip_additional_props(schema):
+    if not isinstance(schema, dict):
+        return schema
+    result = {k: v for k, v in schema.items() if k != 'additionalProperties'}
+    for k, v in result.items():
+        if isinstance(v, dict):
+            result[k] = _strip_additional_props(v)
+        elif isinstance(v, list):
+            result[k] = [_strip_additional_props(i) for i in v]
+    return result
 
-    kwargs = {
-        'model': chosen_model,
-        'max_tokens': max_tokens,
-        'system': system_param,
-        'messages': [{'role': 'user', 'content': user}],
-    }
+def call_gemini(system, user, max_tokens=2000, output_schema=None, **_):
+    from google.genai import types as gtypes
+    client = _gemini_client()
+    cfg = {'system_instruction': system, 'max_output_tokens': max_tokens}
     if output_schema is not None:
-        kwargs['output_config'] = {
-            'format': {
-                'type': 'json_schema',
-                'schema': output_schema,
-            }
-        }
-
-    # max_tokens가 크면 SDK가 비스트리밍 호출을 거부할 수 있음 → 자동 스트리밍
-    use_stream = max_tokens > 8000
-
+        cfg['response_mime_type'] = 'application/json'
+        cfg['response_schema'] = _strip_additional_props(output_schema)
+    waits = [8, 15, 25, 40]
     last_err = None
-    waits = [8, 15, 25, 40]  # 재시도 대기 시간(초)
     for attempt in range(5):
         try:
-            if use_stream:
-                with client.messages.stream(**kwargs) as stream:
-                    msg = stream.get_final_message()
-            else:
-                msg = client.messages.create(**kwargs)
-            return msg.content[0].text.strip()
+            resp = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=user,
+                config=gtypes.GenerateContentConfig(**cfg),
+            )
+            return resp.text.strip()
         except Exception as e:
             last_err = e
             err_str = str(e)
-            is_temp = any(x in err_str for x in ['529','overloaded','500','502','503','timeout','rate_limit'])
+            is_temp = any(x in err_str for x in ['429', '500', '502', '503', 'timeout', 'quota'])
             if is_temp and attempt < 4:
                 wait = waits[attempt]
-                print(f'[Claude] {attempt+1}/4 재시도, {wait}초 대기... ({err_str[:80]})')
+                print(f'[Gemini] {attempt+1}/4 재시도, {wait}초 대기... ({err_str[:80]})')
                 time.sleep(wait)
             else:
                 raise
     raise last_err
 
+# 하위 호환 별칭 (호출부 일괄 교체)
+call_claude = call_gemini
 
-def call_claude_json(system, user, schema, max_tokens=2000, model=None, cache_system=False):
-    """JSON 응답 헬퍼. schema로 구조 강제, 파싱된 dict 반환."""
-    text = call_claude(system, user, max_tokens=max_tokens, model=model,
-                       cache_system=cache_system, output_schema=schema)
+def call_gemini_json(system, user, schema, max_tokens=2000, **_):
+    text = call_gemini(system, user, max_tokens=max_tokens, output_schema=schema)
     return json.loads(text)
+
+call_claude_json = call_gemini_json
 
 # ── 공통 JSON 파싱 ──────────────────────────────────────────
 def extract_json(text):
@@ -563,7 +546,6 @@ def analyze_track():
             result['audio']['librosa_error'] = str(e)
 
         # 3. Gemini로 오디오 직접 분석
-        gemini_key = (load_settings() or {}).get('gemini_key', '')
         bpm = result['audio'].get('bpm') or result['meta'].get('bpm', '')
         key = result['audio'].get('key') or ''
         title = result['meta'].get('title', os.path.splitext(file.filename)[0])
@@ -676,18 +658,10 @@ def analyze_track():
         ]
 
         # Gemini로 오디오 파일 직접 분석
-        if not gemini_key:
-            result['gemini_error'] = 'Gemini API 키 미설정 — 설정에서 입력해주세요'
-        else:
-            print('[Gemini] 분석 시작...')
         try:
-            if not gemini_key:
-                raise Exception('Gemini API 키 없음')
             import mimetypes
-            from google import genai as ggenai
-            print('[Gemini] 패키지 임포트 성공')
-
-            client = ggenai.Client(api_key=gemini_key)
+            from google.genai import types as gtypes
+            client = _gemini_client()
 
             with open(tmp_path, 'rb') as af:
                 audio_data = af.read()
@@ -734,7 +708,6 @@ def analyze_track():
                 '"analysis_summary":"실제 오디오 기반 분석 3-4문장 한국어"}'
             )
 
-            from google.genai import types as gtypes
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=[
@@ -1043,8 +1016,7 @@ def build_suno_tags(genre='', mood='', theme='', bpm='', length='',
     user = '\n'.join(parts) + '\n\nGenerate comprehensive Suno style tags covering ALL the options above.'
 
     try:
-        # 태그 생성은 단순 작업 → Haiku 사용 (Sonnet 대비 약 3배 저렴)
-        tags = call_claude(system, user, max_tokens=300, model=CLAUDE_MODEL_HAIKU).strip().strip('`').strip()
+        tags = call_gemini(system, user, max_tokens=300).strip().strip('`').strip()
         # 마크다운이나 설명이 붙으면 첫 줄만 사용
         first_line = tags.split('\n')[0].strip()
         if ',' in first_line:
