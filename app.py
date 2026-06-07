@@ -261,7 +261,12 @@ call_claude = call_groq
 call_gemini = call_groq
 
 def call_groq_json(system, user, schema, max_tokens=2000, **_):
-    system_json = system + '\n\nRespond with valid JSON only. No markdown, no extra text.'
+    # 최상위 키 이름만 힌트로 전달 — 전체 스키마는 모델을 압도해 내용 비움 유발
+    keys = list((schema or {}).get('properties', {}).keys())
+    fmt = '{' + ', '.join(f'"{k}": ...' for k in keys) + '}' if keys else '{...}'
+    system_json = (system
+        + f'\n\nRespond with ONLY valid JSON in this format: {fmt}'
+        + '\nNo markdown, no explanation, no extra text.')
     text = call_groq(system_json, user, max_tokens=max_tokens, output_schema=schema)
     return json.loads(text)
 
