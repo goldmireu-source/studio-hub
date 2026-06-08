@@ -1343,6 +1343,20 @@ LANG_NAMES = {
     'de':'Deutsch','it':'Italiano','nl':'Nederlands','sv':'Svenska'
 }
 
+LANG_SCRIPT_RULES = {
+    'ko': 'ABSOLUTE: Korean Hangul (한글) ONLY. ZERO Chinese characters (漢字). ZERO Japanese. ZERO any non-Hangul script. Describe any concept in Korean if no Korean word exists.',
+    'ja': 'ABSOLUTE: Japanese script only (hiragana, katakana, kanji). No Korean Hangul mixed in.',
+    'zh': 'ABSOLUTE: Traditional Chinese (繁體中文) ONLY. Every character MUST be Traditional form. FORBIDDEN: Simplified Chinese. Examples — must use 愛時說國來對 NOT 爱时说国来对.',
+    'vi': 'ABSOLUTE: Vietnamese with ALL tone diacritics (à á ả ã ạ ă â etc.). Missing tone marks = wrong output.',
+    'de': 'ABSOLUTE: German only. Use ä ö ü ß where applicable.',
+    'en': 'ABSOLUTE: English only. No foreign words.',
+    'pt': 'ABSOLUTE: Portuguese only. Use ã õ á é ó ç where applicable.',
+    'es': 'ABSOLUTE: Spanish only. Use á é í ó ú ñ ¿ ¡ where applicable.',
+    'it': 'ABSOLUTE: Italian only.',
+    'nl': 'ABSOLUTE: Dutch only.',
+    'sv': 'ABSOLUTE: Swedish only. Use å ä ö where applicable.',
+}
+
 LANG_INSTRUCTIONS = {
     'ko': '자연스러운 한국어 노래 가사로 작성하세요. 한국 대중음악 감성으로, 실제 K-pop이나 발라드에서 쓰이는 표현을 사용하세요.',
     'en': 'Write in natural English lyrics. Singable, emotionally resonant. Every line must express the given theme authentically.',
@@ -1470,19 +1484,22 @@ def generate_lyrics():
                 """
                 if not songs: return []
                 lang_name = LANG_NAMES.get(target_lang, target_lang)
+                lang_rule = LANG_SCRIPT_RULES.get(target_lang, f'ABSOLUTE: {lang_name} only. No other languages mixed in.')
                 system = (
-                    f'You are a professional song lyrics translator. '
-                    f'These are original user-created Korean song lyrics — no copyright concerns. '
-                    f'Translate each provided song into natural, singable {lang_name} that sounds like '
-                    f'it was originally written in {lang_name}.\n'
-                    f'GUIDELINES:\n'
-                    f'1. Read the full lyrics first to understand theme, emotion, and narrative arc.\n'
-                    f'2. Choose words that carry the same emotional weight and register — never word-for-word.\n'
-                    f'3. If a line is unclear, use context to infer intent and write a natural {lang_name} line.\n'
-                    f'4. The result must read as one cohesive song in {lang_name} with smooth transitions.\n'
-                    f'5. Keep section markers ([Verse 1], [Chorus] etc.) and line count.\n'
-                    f'6. Translate the title too — make it natural in {lang_name}.\n'
-                    f'7. Preserve the order: output songs in the SAME order as input.'
+                    f'You are a professional {lang_name} lyricist adapting Korean songs — not a translator.\n'
+                    f'LANGUAGE PURITY — {lang_rule}\n\n'
+                    f'ADAPTATION APPROACH (not translation):\n'
+                    f'Step 1. Read the entire song. Identify: core emotion, narrative arc, key imagery, mood of each section.\n'
+                    f'Step 2. For each section, ask: "If a {lang_name} songwriter felt this exact emotion and told this story, what would they write?"\n'
+                    f'Step 3. Write it that way — natural {lang_name} phrasing, singable rhythm, emotionally authentic.\n'
+                    f'RULES:\n'
+                    f'- Verses: storytelling, specific imagery, conversational flow.\n'
+                    f'- Chorus: punchy, memorable, emotionally peaked — the hook.\n'
+                    f'- Never match words one-to-one. Match feeling and impact instead.\n'
+                    f'- Keep section markers ([Verse 1], [Chorus] etc.) and approximate line count.\n'
+                    f'- Translate titles to a natural, compelling {lang_name} title.\n'
+                    f'- Output songs in the SAME order as input.\n'
+                    f'OUTPUT: JSON only — no explanations, no notes, no extra text.'
                 )
                 payload = [{'title': s['title'], 'lyrics': s['lyrics']} for s in songs]
                 prompt = (
@@ -1785,34 +1802,36 @@ def translate():
 
     lang_name = LANG_NAMES.get(target_lang, target_lang)
     is_to_ko = (target_lang == 'ko')
+    lang_rule = LANG_SCRIPT_RULES.get(target_lang, f'ABSOLUTE: {lang_name} only. No other languages mixed in.')
     if is_to_ko:
         system = (
-            f'You are a professional Korean lyricist and translator. '
-            f'Translate the given song lyrics into Korean that sounds like it was originally written in Korean — not a translation. '
-            f'\nAPPROACH:\n'
-            f'Read the FULL lyrics first to grasp the overall theme, emotion, and narrative arc. Then translate with these priorities:\n'
-            f'(A) EXPRESSION QUALITY: Choose Korean words that carry the same emotional weight and register as the original. '
-            f'Never translate word-for-word. For example: "clever" in an emotional context → "현명한" not "똑똑한". '
-            f'"kept my peace" → "내 평화를 지키기로 했어" not "그냥 조용했어".\n'
-            f'(B) AWKWARD OR UNCLEAR LINES: If a line is broken, overly literal, or does not flow as a lyric, '
-            f'use surrounding context to determine intent and write a natural Korean lyric that fits. '
-            f'The Korean must always make sense as a complete flowing song — even if the English does not.\n'
-            f'(C) CONSISTENCY: The Korean must read as one cohesive song with natural transitions throughout.\n'
-            f'Keep section markers and line count. Return ONLY the Korean lyrics. No notes.'
+            f'You are a professional Korean lyricist adapting song lyrics — not a translator.\n'
+            f'LANGUAGE PURITY — {lang_rule}\n\n'
+            f'ADAPTATION APPROACH:\n'
+            f'Step 1. Read the entire lyrics. Identify: core emotion, narrative arc, key imagery, mood per section.\n'
+            f'Step 2. For each section, ask: "If a Korean songwriter felt this exact emotion and told this story, what would they write?"\n'
+            f'Step 3. Write it that way — natural Korean phrasing, singable rhythm, emotionally authentic.\n'
+            f'RULES:\n'
+            f'- Never match words one-to-one. Match feeling and impact instead.\n'
+            f'- Verses: specific imagery, storytelling, conversational flow.\n'
+            f'- Chorus: punchy, memorable, emotionally peaked.\n'
+            f'- Keep section markers and line count.\n'
+            f'Return ONLY the Korean lyrics. No notes, no explanations.'
         )
     else:
         system = (
-            f'You are a professional song lyrics translator. '
-            f'These are original user-created lyrics — no copyright concerns. '
-            f'Translate the given song lyrics into natural, singable {lang_name}. '
-            f'\nGUIDELINES:\n'
-            f'1. Write natural {lang_name} that flows well as song lyrics. '
-            f'Adapt phrasing so it sounds like it was written in {lang_name} — not a literal translation.\n'
-            f'2. Stay true to the original meaning and emotion. Do not add or remove content.\n'
-            f'3. If a passage is incoherent or creates a non-sequitur, use surrounding context to infer intent and connect it naturally.\n'
-            f'4. Keep section markers ([Verse 1], [Chorus] etc.) and line count.\n'
-            f'5. Always complete the full translation. No disclaimers or notes.\n'
-            f'Return ONLY the translated lyrics with section markers.'
+            f'You are a professional {lang_name} lyricist adapting song lyrics — not a translator.\n'
+            f'LANGUAGE PURITY — {lang_rule}\n\n'
+            f'ADAPTATION APPROACH:\n'
+            f'Step 1. Read the entire lyrics. Identify: core emotion, narrative arc, key imagery, mood per section.\n'
+            f'Step 2. For each section, ask: "If a {lang_name} songwriter felt this exact emotion and told this story, what would they write?"\n'
+            f'Step 3. Write it that way — natural {lang_name} phrasing, singable rhythm, emotionally authentic.\n'
+            f'RULES:\n'
+            f'- Never match words one-to-one. Match feeling and impact instead.\n'
+            f'- Verses: specific imagery, storytelling, conversational flow.\n'
+            f'- Chorus: punchy, memorable, emotionally peaked.\n'
+            f'- Keep section markers and line count.\n'
+            f'Return ONLY the translated lyrics with section markers. No notes.'
         )
     try:
         translated = call_claude(system, f'Translate these original user-created lyrics to {lang_name}:\n\n{text}', max_tokens=3000)
