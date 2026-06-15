@@ -1,15 +1,50 @@
-import os, sys, json, time, threading, shutil, zipfile, urllib.request, re
-import hashlib, secrets
+import hashlib
+import json
+import logging
+import os
+import re
+import secrets
+import shutil
+import sys
+import tempfile
+import threading
+import time
+import urllib.request
+import zipfile
 from datetime import timedelta
-from flask import Flask, request, jsonify, send_file, render_template, session, redirect
+
+from flask import Flask, redirect, render_template, request, jsonify, send_file, session
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+)
+logger = logging.getLogger(__name__)
+
+# ── 상수 ──────────────────────────────────────────────────────
+SESSION_TIMEOUT_HOURS   = 8
+MAX_OAUTH2_LOG_ENTRIES  = 30
+GROQ_RETRY_WAITS        = [8, 15, 25, 40]   # 초 단위
+API_TIMEOUT_SEC         = 25
+RSS_TIMEOUT_SEC         = 15
+MAX_REALTIME_ITEMS      = 20
+MAX_REGION_RESULTS      = 10
+MAX_KEYWORDS            = 5
+AUDIO_ANALYSIS_DURATION = 60    # librosa 분석에 사용할 오디오 길이(초)
+MP3_QUALITY_BITRATE     = '192'
+MP3_MAX_BYTES           = 200 * 1024 * 1024
+ERROR_PREVIEW_LENGTH    = 80
 
 app = Flask(__name__)
 CORS(app)
+limiter = Limiter(app, key_func=get_remote_address, default_limits=[])
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, 'downloads')
-FFMPEG_DIR = os.path.join(BASE_DIR, 'ffmpeg_bin')
+FFMPEG_DIR   = os.path.join(BASE_DIR, 'ffmpeg_bin')
 
 def _resolve_ffmpeg_dir():
     import shutil
@@ -42,8 +77,9 @@ class _OAuth2Logger:
     def _check(self, msg):
         if not msg: return
         oauth2_logs.append(msg)
-        if len(oauth2_logs) > 30: oauth2_logs.pop(0)
-        print(f'[oauth2-log] {msg}')
+        if len(oauth2_logs) > MAX_OAUTH2_LOG_ENTRIES:
+            oauth2_logs.pop(0)
+        logger.info('[oauth2] %s', msg)
         if 'google.com/device' in msg or 'accounts.google.com' in msg:
             url = re.search(r'https://[^\s\)"\']+', msg)
             if url: oauth2_state['auth_url'] = url.group().rstrip('.,')
@@ -56,7 +92,7 @@ class _OAuth2Logger:
     def info(self, msg): self._check(msg)
     def warning(self, msg): self._check(msg)
     def error(self, msg):
-        print(f'[oauth2-err] {msg}')
+        logger.error('[oauth2] %s', msg)
         if oauth2_state['status'] not in ('waiting', 'authorized'):
             oauth2_state['status'] = 'error'; oauth2_state['error'] = msg
 
@@ -88,9 +124,9 @@ def setup_ffmpeg():
     exe = os.path.join(FFMPEG_DIR, 'ffmpeg.exe')
     probe = os.path.join(FFMPEG_DIR, 'ffprobe.exe')
     if os.path.exists(exe) and os.path.exists(probe):
-        print('[ffmpeg] 준비됨')
+        logger.info('[ffmpeg] 준비됨')
         return True
-    print('[ffmpeg] 다운로드 중... (최초 1회)')
+    logger.info('[ffmpeg] 다운로드 중... (최초 1회)')
     try:
         url = 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip'
         zp = os.path.join(FFMPEG_DIR, 'ffmpeg.zip')
@@ -102,16 +138,21 @@ def setup_ffmpeg():
                     with z.open(m) as src, open(os.path.join(FFMPEG_DIR, fn), 'wb') as dst:
                         shutil.copyfileobj(src, dst)
         os.remove(zp)
-        print('[ffmpeg] 설치 완료')
+        logger.info('[ffmpeg] 설치 완료')
         return True
     except Exception as e:
-        print(f'[ffmpeg] 실패: {e}')
+        logger.error('[ffmpeg] 설치 실패: %s', e)
         return False
 
 setup_ffmpeg()
 
 # ── 설정 ──────────────────────────────────────────────────────
-def load_settings():
+def load_settings() -> dict:
+    """data/settings.json을 읽어 설정 딕셔너리를 반환한다.
+
+    파일이 없거나 파싱에 실패하면 빈 딕셔너리를 반환한다.
+    anthropic_key가 있으면 ANTHROPIC_API_KEY 환경변수에도 설정한다.
+    """
     try:
         if os.path.exists(SETTINGS_FILE):
             with open(SETTINGS_FILE, 'r') as f:
@@ -122,7 +163,15 @@ def load_settings():
     except: pass
     return {}
 
-def save_settings(data):
+def save_settings(data: dict) -> None:
+    """설정 값을 data/settings.json에 병합·저장한다.
+
+    기존 설정을 읽어 data로 업데이트한 뒤 다시 씁니다.
+    anthropic_key가 포함되면 환경변수도 즉시 갱신합니다.
+
+    Args:
+        data: 저장할 키-값 쌍. 기존 값과 병합되므로 부분 업데이트가 가능하다.
+    """
     existing = {}
     try:
         if os.path.exists(SETTINGS_FILE):
@@ -147,18 +196,24 @@ def _init_auth():
     if not s.get('secret_key'):
         changed['secret_key'] = secrets.token_hex(32)
     if not s.get('auth_user') or not s.get('auth_pass_hash'):
-        default_pw = 'studiohub2024'
+        import string
+        alphabet = string.ascii_letters + string.digits
+        default_pw = ''.join(secrets.choice(alphabet) for _ in range(16))
         changed['auth_user'] = 'admin'
         changed['auth_pass_hash'] = _hash_pw(default_pw)
-        print(f'[AUTH] 기본 계정 생성: admin / {default_pw}  ← 설정에서 변경하세요')
+        logger.warning('[AUTH] 기본 계정 생성: admin / %s  ← 설정에서 즉시 변경하세요', default_pw)
     if changed:
         save_settings(changed)
         s.update(changed)
     return s
 
 _auth_cfg = _init_auth()
-app.secret_key = _auth_cfg['secret_key']
-app.permanent_session_lifetime = timedelta(days=30)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or _auth_cfg['secret_key']
+app.permanent_session_lifetime = timedelta(hours=8)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+)
 
 @app.before_request
 def require_login():
@@ -171,6 +226,7 @@ def require_login():
         return redirect('/login')
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit('10 per minute')
 def login():
     error = None
     if request.method == 'POST':
@@ -235,7 +291,7 @@ def call_groq(system, user, max_tokens=2000, output_schema=None, **_):
     }
     if output_schema is not None:
         data['response_format'] = {'type': 'json_object'}
-    waits = [8, 15, 25, 40]
+    waits = GROQ_RETRY_WAITS
     last_err = None
     for attempt in range(5):
         try:
@@ -250,7 +306,7 @@ def call_groq(system, user, max_tokens=2000, output_schema=None, **_):
             is_temp = not is_daily and any(x in err_str for x in ['429', '500', '502', '503', 'timeout'])
             if is_temp and attempt < 4:
                 wait = waits[attempt]
-                print(f'[Groq] {attempt+1}/4 재시도, {wait}초 대기... ({err_str[:80]})')
+                logger.warning('[Groq] %d/4 재시도, %d초 대기: %s', attempt + 1, wait, err_str[:ERROR_PREVIEW_LENGTH])
                 time.sleep(wait)
             else:
                 raise
@@ -396,7 +452,7 @@ def trends():
             'req': json.dumps({"comparisonItem": comps, "category": cat, "property": ""}),
         })
         url = 'https://trends.google.com/trends/api/explore?' + params
-        r = sess.get(url, timeout=25)
+        r = sess.get(url, timeout=API_TIMEOUT_SEC)
         r.raise_for_status()
         return json.loads(strip_prefix(r.text)).get('widgets', [])
 
@@ -407,7 +463,7 @@ def trends():
             'token': widget.get('token', ''),
         })
         url = f'https://trends.google.com/trends/api/widgetdata/{endpoint}?' + params
-        r = sess.get(url, timeout=25)
+        r = sess.get(url, timeout=API_TIMEOUT_SEC)
         r.raise_for_status()
         return json.loads(strip_prefix(r.text))
 
@@ -417,11 +473,11 @@ def trends():
             try:
                 r = sess.get(
                     f'https://trends.google.com/trends/trendingsearches/daily/rss?geo={geo or "KR"}',
-                    timeout=15
+                    timeout=RSS_TIMEOUT_SEC
                 )
                 root = ET.fromstring(r.text)
                 items = []
-                for item in root.findall('.//item')[:20]:
+                for item in root.findall('.//item')[:MAX_REALTIME_ITEMS]:
                     title = item.findtext('title', '')
                     traffic = item.findtext(
                         '{https://trends.google.com/trends/trendingsearches/daily}approx_traffic', ''
@@ -434,7 +490,7 @@ def trends():
 
         if want_interest or want_related or want_region:
             widgets = get_widgets()
-            print(f'[trends] widgets: {[w.get("title") for w in widgets]}')
+            logger.debug('[trends] widgets: %s', [w.get('title') for w in widgets])
 
             w_map = {}
             for w in widgets:
@@ -500,7 +556,7 @@ def trends():
                                 if v > 0:
                                     region_result[kw].append({'geoName': name, 'region': name, 'value': v})
                         for kw in keywords:
-                            region_result[kw] = sorted(region_result[kw], key=lambda x: x['value'], reverse=True)[:10]
+                            region_result[kw] = sorted(region_result[kw], key=lambda x: x['value'], reverse=True)[:MAX_REGION_RESULTS]
                         result['region'] = {k: v for k, v in region_result.items() if v}
                     else:
                         result['region_error'] = '위젯 없음'
@@ -510,7 +566,7 @@ def trends():
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
-        print(f'[trends ERROR]\n{tb}')
+        logger.error('[trends] %s', tb)
         return jsonify({'success': False, 'error': f'Google Trends 오류: {str(e)}\n{tb}'}), 500
 
     return jsonify(result)
@@ -521,8 +577,21 @@ def trends():
 
 # ── 트랙 분석 ────────────────────────────────────────────────
 @app.route('/api/analyze/track', methods=['POST'])
+@limiter.limit('30 per hour')
 def analyze_track():
-    import tempfile, os, base64
+    """업로드된 오디오 파일을 분석하여 장르·분위기·BPM 등 메타데이터를 반환한다.
+
+    1단계: librosa로 로컬 오디오 특성(BPM, 에너지, 키)을 추출한다.
+    2단계: Gemini 2.5 Flash에 오디오를 직접 전달해 상세 분석을 시도한다.
+    Gemini 실패 시 librosa 결과만 반환한다.
+
+    Request body (multipart/form-data):
+        file: 분석할 오디오 파일 (mp3 등).
+
+    Returns:
+        JSON: {success, meta, audio, analysis, gemini_used?}
+    """
+    import base64
 
     if 'file' not in request.files:
         return jsonify({'success': False, 'error': '파일 없음'}), 400
@@ -533,7 +602,7 @@ def analyze_track():
 
     result = {'success': True, 'meta': {}, 'audio': {}, 'analysis': {}}
 
-    suffix = os.path.splitext(file.filename)[1].lower()
+    suffix = '.mp3'
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         file.save(tmp.name)
         tmp_path = tmp.name
@@ -559,7 +628,7 @@ def analyze_track():
         # 2. librosa BPM/키 분석
         try:
             import librosa, numpy as np
-            y, sr = librosa.load(tmp_path, duration=60, mono=True)
+            y, sr = librosa.load(tmp_path, duration=AUDIO_ANALYSIS_DURATION, mono=True)
             tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
             result['audio']['bpm'] = round(float(tempo), 1)
             chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
@@ -664,21 +733,33 @@ def analyze_track():
             "pitched down / chopped", "reverb-drenched / washed", "double-tracked / layered",
         ]
         GENRE_OPTIONS = [
-            'boom bap','trap','drill','UK drill','phonk','cloud rap','rage rap',
-            'conscious rap','gangsta rap','old school hip hop','east coast hip hop',
-            'west coast hip hop','southern hip hop','mumble rap','emo rap','melodic rap',
-            'chopper','lo-fi hip hop','jazz rap','soul rap','abstract hip hop',
-            'alternative hip hop','crunk','jersey club','hyper pop',
-            'R&B','neo soul','soul','funk','afrobeats','afro trap','grime','reggaeton','pop rap',
+            'boom bap', 'trap', 'drill', 'UK drill', 'phonk', 'cloud rap', 'rage rap',
+            'conscious rap', 'gangsta rap', 'old school hip hop', 'east coast hip hop',
+            'west coast hip hop', 'southern hip hop', 'mumble rap', 'emo rap', 'melodic rap',
+            'chopper', 'lo-fi hip hop', 'jazz rap', 'soul rap', 'abstract hip hop',
+            'alternative hip hop', 'crunk', 'jersey club', 'hyper pop', 'K-hip hop',
+            'R&B', 'neo soul', 'soul', 'funk', 'afrobeats', 'afro trap', 'grime', 'reggaeton', 'pop rap',
         ]
         MOOD_OPTIONS = [
-            'dark','aggressive','menacing','cold','ominous','gritty','raw','intense',
-            'desperate','chaotic','ruthless','melancholic','emotional','sad','lonely',
-            'heartbroken','nostalgic','bittersweet','vulnerable','reflective','somber',
-            'energetic','hype','explosive','triumphant','confident','powerful','uplifting',
-            'anthemic','motivational','defiant','dreamy','hazy','mysterious','atmospheric',
-            'hypnotic','ethereal','chill','laid-back','peaceful','warm','smooth',
-            'romantic','passionate','moody','tense','hopeful','sweet',
+            'dark', 'aggressive', 'menacing', 'cold', 'ominous', 'gritty', 'raw', 'intense',
+            'desperate', 'chaotic', 'ruthless', 'melancholic', 'emotional', 'sad', 'lonely',
+            'heartbroken', 'nostalgic', 'bittersweet', 'vulnerable', 'reflective', 'somber',
+            'energetic', 'hype', 'explosive', 'triumphant', 'confident', 'powerful', 'uplifting',
+            'anthemic', 'motivational', 'defiant', 'dreamy', 'hazy', 'mysterious', 'atmospheric',
+            'hypnotic', 'ethereal', 'chill', 'laid-back', 'peaceful', 'warm', 'smooth',
+            'romantic', 'passionate', 'moody', 'tense', 'hopeful', 'sweet',
+        ]
+        VOCALIST_OPTIONS = [
+            "male rapper, aggressive hard-hitting delivery",
+            "male rapper, smooth laid-back delivery",
+            "male rapper, fast technical rapid-fire",
+            "male rapper, deep baritone authoritative",
+            "male rapper, raspy gritty voice",
+            "female rapper, assertive dominant",
+            "female rapper, melodic rap hybrid",
+            "female rapper, fast aggressive",
+            "rapper who self-sings hooks with auto-tune",
+            "mumble rapper, melodic hazy delivery",
         ]
 
         # Gemini로 오디오 파일 직접 분석
@@ -691,15 +772,6 @@ def analyze_track():
                 audio_data = af.read()
 
             mime_type = mimetypes.guess_type(tmp_path)[0] or 'audio/mpeg'
-
-            BPM_OPTIONS = ["slow hip-hop (70-85 BPM)","mid-tempo hip-hop (86-100 BPM)","standard hip-hop (101-115 BPM)","fast hip-hop (116-130 BPM)","trap tempo (130-145 BPM)","drill tempo (140-150 BPM)"]
-            LYRIC_STYLE_OPTIONS = ["straight rap — steady consistent tempo bar 1 to end, no melodic singing, pure rhythmic flow locked to BPM","boom bap — classic 4/4 bars, punchy on 2 and 4, gritty East Coast delivery","conscious rap — storytelling bars, poetic imagery, spoken word, thoughtful message-driven","jazz rap — laid-back swinging flow, jazzy cadence, sophisticated wordplay","trap flow — triplet hi-hat cadence, ad-libs scattered throughout, sliding pitch variations","drill flow — dark aggressive, sliding melodic inflections on every bar, menacing tone","UK drill flow — distinctive British cadence, staccato delivery, dark minor key feel","phonk rap — dark memphis-style, slow menacing delivery, heavy 808 emphasis, eerie","rage rap — chaotic frantic energy, screamed sections, aggressive unpredictable flow","melodic rap — emotional sung hooks and chorus, rap verses, heartfelt bridge","emo rap — vulnerable emotional delivery, confessional lyrics, blending singing and rapping","cloud rap — hazy dreamy delivery, atmospheric whispered tone, slow drifting flow","lo-fi rap — relaxed conversational delivery, loose timing, intimate feel","double-time rap — twice the syllable density, rapid-fire delivery at double tempo","aggressive rap — hard-hitting explosive bars, relentless non-stop energy throughout","chopper style — extremely fast technical delivery, maximum syllable density","mumble rap — melody-focused hazy delivery, words blend together, vibe over clarity","gangsta rap — street narrative, hard-nosed delivery, West Coast influenced flow"]
-            INSTRUMENT_OPTIONS = ["boom bap drums (vinyl samples, punchy kick and snare, classic hip-hop groove)","jazz rap (live jazz samples, upright bass, brushed snare, sophisticated)","soul samples (chopped soul vocals, warm organ, funky groove drums)","funk-influenced hip-hop (live bass, guitar licks, drum breaks, groovy)","gospel hip-hop (choir samples, organ stabs, uplifting drums)","trap 808 bass (rolling hi-hats, deep 808 sub-bass, snappy snare)","drill beats (dark minor key melody, sliding 808 bass, aggressive ominous drums)","UK drill (dark orchestral stabs, rolling hi-hats, heavy 808 UK style)","minimal trap (sparse hi-hats, deep sub-bass, lots of empty space)","rage beat (distorted 808, chaotic dark synth, explosive energy)","phonk (memphis choir stabs, heavy distorted 808, eerie slow atmosphere)","lo-fi hip-hop (dusty jazz samples, mellow drums, vinyl crackle, cozy)","cloud rap beats (dreamy synths, reverb-drenched samples, hazy atmosphere)","emo rap production (guitar-based, emotional piano, atmospheric pads)","dark ambient hip-hop (atmospheric textures, minor key pads, eerie samples)","orchestral hip-hop (strings, brass, cinematic grand scale production)","afrobeats hip-hop fusion (afro percussion, melodic synths, bouncy groove)","alternative hip-hop (experimental sounds, unconventional structure, art-focused)"]
-            SOUND_OPTIONS = ["dry close-mic, no reverb, raw intimate punchy sound","heavy reverb, spacious atmospheric room sound","lo-fi warm vinyl crackle, dusty nostalgic texture","hazy dreamy washed-out atmospheric, cloud-like","crisp clear polished radio-ready mix","dark and gloomy, minor key, ominous heavy atmosphere","bright energetic punchy, club-ready high-energy","melancholic emotional, bittersweet mood, minor key warmth","aggressive hard industrial, dark mechanical energy","eerie unsettling, creepy phonk-like atmosphere","uplifting anthemic, triumphant feel-good energy","trap-style heavy 808 bass dominating the mix","rage chaotic distorted overdriven heavy production","cinematic orchestral epic grand scale production","smooth R&B-influenced warm polished glossy production","minimalist sparse production, space and silence emphasized","vintage golden era hip-hop production aesthetic"]
-            VOCAL_TONE_OPTIONS = ["deep / bass-heavy","warm baritone","chest voice / resonant","gravelly / gritty","raspy / husky","aggressive / hard-hitting","dark / menacing","intense / desperate","commanding / dominant","cold / detached","smooth / velvety","melodic / singing-inflected","emotional / vulnerable","soulful / R&B-influenced","whispery / intimate","nasal / NY-style","airy / breathless","high-pitched / piercing","monotone / deadpan","laid-back / slurred","energetic / hype","southern drawl","british / UK-accent","auto-tune heavy","auto-tune subtle / light","vocoder / robotic","distorted / overdriven","pitched down / chopped","reverb-drenched / washed","double-tracked / layered"]
-            GENRE_OPTIONS = ["boom bap","trap","drill","UK drill","phonk","cloud rap","rage rap","conscious rap","gangsta rap","old school hip hop","east coast hip hop","west coast hip hop","southern hip hop","mumble rap","emo rap","melodic rap","chopper","lo-fi hip hop","jazz rap","soul rap","R&B","neo soul","soul","funk","afrobeats","afro trap","grime","reggaeton","pop rap","K-hip hop"]
-            MOOD_OPTIONS = ["dark","aggressive","menacing","cold","ominous","gritty","raw","intense","desperate","chaotic","ruthless","melancholic","emotional","sad","lonely","heartbroken","nostalgic","bittersweet","vulnerable","reflective","somber","energetic","hype","explosive","triumphant","confident","powerful","uplifting","anthemic","motivational","defiant","dreamy","hazy","mysterious","atmospheric","hypnotic","ethereal","chill","laid-back","peaceful","warm","smooth","romantic","passionate","moody","tense","hopeful","sweet"]
-            VOCALIST_OPTIONS = ["male rapper, aggressive hard-hitting delivery","male rapper, smooth laid-back delivery","male rapper, fast technical rapid-fire","male rapper, deep baritone authoritative","male rapper, raspy gritty voice","female rapper, assertive dominant","female rapper, melodic rap hybrid","female rapper, fast aggressive","rapper who self-sings hooks with auto-tune","mumble rapper, melodic hazy delivery"]
 
             prompt_text = (
                 "이 오디오를 직접 들으면서 분석해주세요.\n\n"
@@ -746,9 +818,9 @@ def analyze_track():
                     response = _fut.result(timeout=30)
                 except _cf.TimeoutError:
                     raise Exception('Gemini 분석 시간 초과 (30s) — librosa 결과만 사용됩니다')
-            print(f'[Gemini 응답] {response.text[:500]}')
+            logger.debug('[Gemini] 응답: %s', response.text[:500])
             analysis = extract_json(response.text)
-            print(f'[Gemini 파싱] {analysis}')
+            logger.debug('[Gemini] 파싱 결과: %s', analysis)
             if analysis:
                 result['analysis'] = analysis
                 result['gemini_used'] = True
@@ -756,12 +828,12 @@ def analyze_track():
                 result['gemini_raw'] = response.text[:1000]
 
         except ImportError as e:
-            print(f'[Gemini ImportError] {e}')
+            logger.warning('[Gemini] 패키지 미설치: %s', e)
             result['gemini_error'] = f'google-generativeai 미설치: {e}'
         except Exception as e:
             import traceback
             tb = traceback.format_exc()
-            print(f'[Gemini ERROR]\n{tb}')
+            logger.error('[Gemini] %s', tb)
             result['gemini_error'] = str(e)
 
         if result.get('analysis'):
@@ -771,7 +843,7 @@ def analyze_track():
         import traceback
         result['success'] = False
         result['error'] = str(e)
-        print(f'[analyze_track ERROR]\n{traceback.format_exc()}')
+        logger.error('[analyze_track] %s', traceback.format_exc())
     finally:
         try:
             os.unlink(tmp_path)
@@ -1016,14 +1088,31 @@ def channel_analyze():
 
     except Exception as e:
         import traceback
-        print(traceback.format_exc())
+        logger.error('[channel_analyze] %s', traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
     return jsonify(result)
 
 # ── 공통 Suno 태그 생성 ────────────────────────────────────────
-def build_suno_tags(genre='', mood='', theme='', bpm='', length='',
-                    lyric_style='', instrument='', vocal='', sound='', structure=''):
+def build_suno_tags(
+    genre: str = '',
+    mood: str = '',
+    theme: str = '',
+    bpm: str = '',
+    length: str = '',
+    lyric_style: str = '',
+    instrument: str = '',
+    vocal: str = '',
+    sound: str = '',
+    structure: str = '',
+) -> str:
+    """Suno AI에 전달할 스타일 태그 문자열을 조립한다.
+
+    각 파라미터가 비어 있으면 해당 필드를 태그에서 생략한다.
+
+    Returns:
+        'Genre: trap, Mood/Feel: dark, ...' 형태의 쉼표 구분 문자열.
+    """
     parts = []
     if genre: parts.append(f'Genre: {genre}')
     if mood: parts.append(f'Mood/Feel: {mood}')
@@ -1140,7 +1229,16 @@ def _cobalt_download(url, video_id, job_id):
 # Invidious: local=true 파라미터로 강제 프록시 요청
 # 반환된 URL이 googlevideo.com이면 해당 인스턴스는 프록시 미지원으로 건너뜀
 
-def download_audio(url, job_id):
+def download_audio(url: str, job_id: str) -> None:
+    """YouTube URL에서 오디오를 다운로드하고 진행 상태를 job_store에 기록한다.
+
+    cobalt.tools API → yt-dlp (직접) → yt-dlp (SOCKS5 프록시) 순으로 시도한다.
+    결과 파일은 DOWNLOAD_DIR에 저장되며, job_store[job_id]가 완료·실패 상태로 갱신된다.
+
+    Args:
+        url:    다운로드할 YouTube 영상 URL.
+        job_id: 진행 상태 조회용 고유 키 (job_store 딕셔너리 키).
+    """
     import yt_dlp
     job_store[job_id] = {'status': 'downloading', 'percent': 0}
 
@@ -1153,7 +1251,7 @@ def download_audio(url, job_id):
                                  'playlist_title': pl_title, 'total_duration': tracks[0]['duration_fmt']}
             return
         except Exception as ce:
-            print(f'[cobalt] failed: {ce}')
+            logger.debug('[cobalt] 실패: %s', ce)
 
     # yt-dlp fallback — WARP 프록시(Cloudflare) 우선
     def hook(d):
@@ -1187,7 +1285,9 @@ def download_audio(url, job_id):
         ]
         for extra in attempts:
             try: info = _run_download(extra); break
-            except Exception as e: last_err = e; print(f'[yt] {extra} err={e}')
+            except Exception as e:
+                last_err = e
+                logger.debug('[yt] %s err=%s', extra, e)
 
         if info is None: raise last_err
         entries = info.get('entries') if 'entries' in info else [info]
@@ -1211,7 +1311,7 @@ def download_audio(url, job_id):
                              'total_duration': fmt_time(cum)}
     except Exception as e:
         job_store[job_id] = {'status': 'error', 'error': str(e)}
-        print(f'[yt error] {e}')
+        logger.error('[yt] 다운로드 오류: %s', e)
 
 def cleanTitle(t):
     import re
@@ -1311,18 +1411,30 @@ def yt_progress(job_id):
 
 @app.route('/api/yt/download-file/<filename>')
 def yt_file(filename):
-    path = os.path.join(DOWNLOAD_DIR, filename)
-    if not os.path.exists(path): return jsonify({'error':'없음'}), 404
-    return send_file(path, as_attachment=True, download_name=filename)
+    safe_name = os.path.basename(filename)
+    real_path = os.path.realpath(os.path.join(DOWNLOAD_DIR, safe_name))
+    if not real_path.startswith(os.path.realpath(DOWNLOAD_DIR) + os.sep):
+        return jsonify({'error': 'Access denied'}), 403
+    if not os.path.exists(real_path):
+        return jsonify({'error': '없음'}), 404
+    return send_file(real_path, as_attachment=True, download_name=safe_name)
 
 @app.route('/api/yt/upload-mp3', methods=['POST'])
 def upload_mp3():
     import subprocess
+    from werkzeug.utils import secure_filename
     files = request.files.getlist('files')
     saved = []
     for f in files:
-        if not f.filename.lower().endswith('.mp3'): continue
-        path = os.path.join(DOWNLOAD_DIR, f.filename)
+        if not f.filename.lower().endswith('.mp3'):
+            continue
+        f.seek(0, 2)
+        if f.tell() > MP3_MAX_BYTES:
+            continue
+        f.seek(0)
+        original_name = secure_filename(f.filename) or 'audio.mp3'
+        rand_name = f'{secrets.token_hex(8)}.mp3'
+        path = os.path.join(DOWNLOAD_DIR, rand_name)
         f.save(path)
         duration = 0
         try:
@@ -1330,7 +1442,7 @@ def upload_mp3():
             r = subprocess.run([probe,'-v','error','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1',path], capture_output=True, text=True)
             duration = float(r.stdout.strip())
         except: pass
-        saved.append({'title': cleanTitle(os.path.splitext(f.filename)[0]), 'artist':'', 'duration':duration, 'duration_fmt':fmt_time(duration), 'file':f.filename, 'source':'upload'})
+        saved.append({'title': cleanTitle(os.path.splitext(original_name)[0]), 'artist':'', 'duration':duration, 'duration_fmt':fmt_time(duration), 'file':rand_name, 'source':'upload'})
     cum = 0
     for t in saved:
         t['timestamp'] = fmt_time(cum); cum += t['duration']
@@ -1372,7 +1484,24 @@ LANG_INSTRUCTIONS = {
 }
 
 @app.route('/api/lyrics/generate', methods=['POST'])
+@limiter.limit('20 per hour')
 def generate_lyrics():
+    """장르·분위기·테마를 기반으로 다국어 가사를 AI로 생성한다.
+
+    Groq(Qwen3-32B)으로 가사를 생성한 뒤 각 언어별로 번역·검수한다.
+    한국어 가사는 외국 문자 포함 여부를 재시도로 검증한다.
+
+    Request body (JSON):
+        genre (str):      장르.
+        mood (str):       분위기.
+        theme (str):      가사 주제.
+        languages (list): 생성할 언어 코드 목록 (기본값: ['ko', 'en']).
+        count (int):      생성할 곡 수, 최대 5.
+        structure (str):  가사 구조 문자열.
+
+    Returns:
+        JSON: {songs: [{title, lyrics_by_lang, suno_tags, ...}], job_id}
+    """
     data = request.json
     genre = data.get('genre','')
     mood = data.get('mood','')
@@ -1548,7 +1677,7 @@ def generate_lyrics():
                         err_str = str(e)
                         if '529' in err_str or 'overloaded' in err_str.lower() or '500' in err_str:
                             wait = 5 * (attempt + 1)
-                            print(f'[translate] 재시도 {attempt+1}/4, {wait}초 대기...')
+                            logger.warning('[translate] 재시도 %d/4, %d초 대기', attempt + 1, wait)
                             time.sleep(wait)
                         else:
                             break
@@ -1655,7 +1784,7 @@ def generate_lyrics():
             job_store[job_id] = {'status':'done', 'progress':100, 'results': results}
         except Exception as e:
             job_store[job_id] = {'status':'error', 'error':str(e)}
-            print(f'[lyrics error] {e}')
+            logger.error('[lyrics] 생성 오류: %s', e)
 
     t = threading.Thread(target=run); t.daemon=True; t.start()
     return jsonify({'job_id': job_id})
@@ -1904,7 +2033,7 @@ def youtube_optimize():
                         'channel': snip.get('channelTitle',''),
                     })
         except Exception as e:
-            print(f'[YT API] {e}')
+            logger.debug('[YT API] %s', e)
 
     # ── Claude로 최적화 추천 생성 ─────────────────────────────
     lang_labels = {'ko':'한국어','en':'English','ja':'日本語','zh':'Traditional Chinese','pt':'Português','es':'Español','vi':'Tiếng Việt','de':'Deutsch','it':'Italiano','nl':'Nederlands','sv':'Svenska'}
@@ -2063,7 +2192,7 @@ def gen_scenes():
             return jsonify({'success': False, 'error': '장면 데이터를 파싱할 수 없습니다. 다시 시도해주세요.'}), 500
         return jsonify({'success': True, 'scenes': scenes})
     except Exception as e:
-        print(f'[scenes error] {e}')
+        logger.error('[scenes] %s', e)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ── 자막 줄 재배분 ───────────────────────────────────────────
@@ -2297,7 +2426,7 @@ def pl_run():
                     'views': int(item['statistics'].get('viewCount', 0)),
                 })
         except Exception as e:
-            print(f'[playlist] videos.list error: {e}')
+            logger.error('[playlist] videos.list 오류: %s', e)
 
     # 3) 길이 + 태그 필터
     filtered = []
@@ -2369,5 +2498,5 @@ def index():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    print('\n✅ Studio App: http://localhost:5000\n')
+    logger.info('Studio App 시작: http://localhost:5000')
     app.run(debug=False, port=5000)
