@@ -40,7 +40,7 @@ ERROR_PREVIEW_LENGTH    = 80
 
 app = Flask(__name__)
 CORS(app)
-limiter = Limiter(app, key_func=get_remote_address, default_limits=[])
+limiter = Limiter(get_remote_address, app=app, default_limits=[])
 
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, 'downloads')
@@ -121,11 +121,19 @@ def _run_oauth2_init():
 
 # ── ffmpeg 자동 설치 ──────────────────────────────────────────
 def setup_ffmpeg():
-    exe = os.path.join(FFMPEG_DIR, 'ffmpeg.exe')
-    probe = os.path.join(FFMPEG_DIR, 'ffprobe.exe')
+    is_win = sys.platform == 'win32'
+    exe   = os.path.join(FFMPEG_DIR, 'ffmpeg.exe'  if is_win else 'ffmpeg')
+    probe = os.path.join(FFMPEG_DIR, 'ffprobe.exe' if is_win else 'ffprobe')
     if os.path.exists(exe) and os.path.exists(probe):
         logger.info('[ffmpeg] 준비됨')
         return True
+    # 시스템 ffmpeg가 있으면 번들 설치 건너뜀
+    if shutil.which('ffmpeg') and shutil.which('ffprobe'):
+        logger.info('[ffmpeg] 시스템 ffmpeg 사용')
+        return True
+    if not is_win:
+        logger.warning('[ffmpeg] Linux에서는 apt install ffmpeg 로 직접 설치하세요')
+        return False
     logger.info('[ffmpeg] 다운로드 중... (최초 1회)')
     try:
         url = 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip'
